@@ -74,72 +74,89 @@ class vxi11_readReason(enum.IntFlag):
 
 class vxi11_conn(rpc_srv.rpc_conn):
     def __init__(self,srv):
-        self.links = []
+        self.links = dict()
         self.srv = srv
         super().__init__()
         
-    def handle_create_link(self,rpc_msg, buf, buf_ix):
+    async def handle_create_link(self,rpc_msg, buf, buf_ix):
         """ Create_LinkResp    create_link        (Create_LinkParms)      = 10; """
         arg_up = VXI11Unpacker(buf)
         arg_up.set_position(buf_ix)
         arg = arg_up.unpack_Create_LinkParms()
         print(f"create_link >>> {arg}")
+        lid = self.srv.next_link_id
+        self.srv.next_link_id = self.srv.next_link_id + 1
+        (err,link) = await self.srv.adapters[0].create_link(clientId = arg.clientId, lockDevice = arg.lockDevice,
+                             lock_timeout = arg.lock_timeout, device = arg.device, link_id = lid)
+        
+        self.links[lid] = link
         rsp = vxi11_type.Create_LinkResp(
-                error=vxi11_errorCodes.NO_ERROR.value, lid=1,
-                abortPort=struct.pack(">H",self.srv.actual_port),maxRecvSize=1024) # min maxRecvSize is 1024 per spec
+                error=err, lid=lid,
+                abortPort=struct.pack(">H",1026),maxRecvSize=1024) # min maxRecvSize is 1024 per spec
         print(f"            <<< {rsp}")
         p = VXI11Packer()
         p.pack_Create_LinkResp(rsp)
         return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
     
-    def handle_device_write(self,rpc_msg, buf, buf_ix):
+    async def handle_device_write(self,rpc_msg, buf, buf_ix):
         """Device_WriteResp   device_write       (Device_WriteParms)     = 11; """
         arg_up = VXI11Unpacker(buf)
         arg_up.set_position(buf_ix)
         arg = arg_up.unpack_Device_WriteParms()
         print(f"device_write >>> {arg} (flags={vxi11_errorCodes(arg.flags)})")
-        rsp = vxi11_type.Device_WriteResp(
-                error=vxi11_errorCodes.NO_ERROR.value, size=len(arg.data))
+        link = self.links[arg.lid]
+        (err,size) = await link.write(io_timeout = arg.io_timeout,
+            lock_timeout = arg.lock_timeout, flags = arg.flags, data = arg.data)
+        
+        rsp = vxi11_type.Device_WriteResp(error=err, size=size)
+        
         print(f"device_write <<< {rsp}")
         p = VXI11Packer()
         p.pack_Device_WriteResp(rsp)
         return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
         
-    def handle_device_read(self,rpc_msg, buf, buf_ix):
+    async def handle_device_read(self,rpc_msg, buf, buf_ix):
         """Device_ReadResp    device_read        (Device_ReadParms)      = 12; """
         arg_up = VXI11Unpacker(buf)
         arg_up.set_position(buf_ix)
         arg = arg_up.unpack_Device_ReadParms()
         print(f"device_read >>> {arg} (flags={vxi11_errorCodes(arg.flags)})")
-        reason = vxi11_readReason.END
-        rsp = vxi11_type.Device_ReadResp(
-                error=vxi11_errorCodes.NO_ERROR.value, reason=reason, data=b"Hello World\n")
+        link = self.links[arg.lid]
+        (err,reason,data) = await link.read(requestSize = arg.requestSize,
+            io_timeout = arg.io_timeout, lock_timeout = arg.lock_timeout,
+            flags = arg.flags, termChar = arg.termChar)
+        rsp = vxi11_type.Device_ReadResp(error=err, reason=reason, data=data)
         print(f"device_read <<< {rsp}")
         p = VXI11Packer()
         p.pack_Device_ReadResp(rsp)
         return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
         
-    def handle_device_readstb(self,rpc_msg, buf, buf_ix):
+    async def handle_device_readstb(self,rpc_msg, buf, buf_ix):
         """Device_ReadStbResp device_readstb     (Device_GenericParms)   = 13;"""
         arg_up = VXI11Unpacker(buf)
         arg_up.set_position(buf_ix)
         arg = arg_up.unpack_Device_GenericParms()
         print(f"device_readstb >>> {arg}")
-        rsp = vxi11_type.Device_ReadStbResp(
-                error=vxi11_errorCodes.NO_ERROR.value, stb=0x23)#stb=struct.pack('>B',0x42))
+        link = self.links[arg.lid]
+        (err,stb) = await link.read_stb(flags = arg.flags,lock_timeout = arg.lock_timeout,
+            io_timeout = arg.io_timeout)
+        
+        rsp = vxi11_type.Device_ReadStbResp(error=err, stb=stb)#stb=struct.pack('>B',0x42))
         print(f"device_readstb <<< {rsp}")
         p = VXI11Packer()
         p.pack_Device_ReadStbResp(rsp)
         return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
     
-    
-    def handle_destroy_link(self,rpc_msg, buf, buf_ix):
+    async def handle_destroy_link(self,rpc_msg, buf, buf_ix):
         """Device_Error       destroy_link       (Device_Link)           = 23; """
         arg_up = VXI11Unpacker(buf)
         arg_up.set_position(buf_ix)
         arg = arg_up.unpack_Device_Link()
         print(f"destroy_link >>> {arg}")
-        rsp = vxi11_type.Device_Error( error=vxi11_errorCodes.NO_ERROR.value)
+        link = self.links[arg]
+        err = await link.destroy()
+        del self.links[arg]
+        rsp = vxi11_type.Device_Error( error=err)
         print(f"destroy_link <<< {rsp}")
         p = VXI11Packer()
         p.pack_Device_Error(rsp)
@@ -147,9 +164,6 @@ class vxi11_conn(rpc_srv.rpc_conn):
     
     # (prog, vers, proc) => func(self,rpc_msg, buf, buf_ix)
     """
-    
-    
-    
     Device_Error       device_trigger     (Device_GenericParms)   = 14; 
     Device_Error       device_clear       (Device_GenericParms)   = 15; 
     Device_Error       device_remote      (Device_GenericParms)   = 16; 
@@ -167,14 +181,15 @@ class vxi11_conn(rpc_srv.rpc_conn):
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_read): handle_device_read,
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_readstb): handle_device_readstb,
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.destroy_link): handle_destroy_link,
-            
     }
     
 class vxi11_srv(rpc_srv.rpc_srv):
     """ 
     mapping member is a map from (prog,vers,prot) to uint
     """
-    def __init__(self,port):
+    def __init__(self,port,adapters):
+        self.adapters = adapters
+        self.next_link_id = 0
         super().__init__(port)
     
     def create_conn(self):

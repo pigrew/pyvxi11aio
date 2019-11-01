@@ -83,7 +83,7 @@ class rpc_srv(ABC):
             msg_up = RPCUnpacker(data)
             msg = msg_up.unpack_rpc_msg()
             #pprint(msg)
-            reply_data = conn.handleMsg(msg,buf=data,buf_ix=msg_up.get_position())
+            reply_data = await conn.handleMsg(msg,buf=data,buf_ix=msg_up.get_position())
             #print(f"rdata={reply_data}")
             if(reply_data is None):
                 raise Exception("cannot handle message")

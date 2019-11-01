@@ -10,10 +10,17 @@ Some design goals/notes:
   support RPC authentication?).
 * Serve as an arbiter, juggling the bus between links
 * Require minimal non-standard Python libraries
-* Use xdrgen from PY
-* Code is BSD 3-clause licensed, except for xdrgen.py which is GPLv2, portmapper.x/rpc.x which are from the
-  cooresponding RFCs.
+* Perform compile-time code generation from XDR files (xdrgen.py from PY NFS project)
+* Single-threaded network stack
+  - Adapter may operate in separate thread(s), but must operate as a asyncio task (with minimal busy states)
+* Code is BSD 3-clause licensed, except:
+  - xdrgen.py which is GPLv2
+  - portmapper.x/rpc.x which are from the cooresponding RFCs.
   - VXI-11 specification is public domain. Thanks!
+* Prior art and references:
+  - coburnw/python-vxi11-server
+  - VXI-11 specification
+
 
 Current status:
 * NI VISA can create connections to the server

@@ -47,6 +47,7 @@ import vxi11_const
 
 import rpc_srv
 import vxi11_srv
+import adapter_time
 
 class portmapper():
     def __init__(self):
@@ -56,7 +57,7 @@ class portmap_conn(rpc_srv.rpc_conn):
     def __init__(self, mapper):
         self.mapper = mapper
         super().__init__()
-    def handle_getPort(self,rpc_msg, buf, buf_ix):
+    async def handle_getPort(self,rpc_msg, buf, buf_ix):
         arg_up = PORTMAPUnpacker(buf)
         arg_up.set_position(buf_ix)
         arg = arg_up.unpack_mapping()
@@ -89,12 +90,12 @@ class portmap_srv(rpc_srv.rpc_srv):
 #    return res
 async def main():
     
-    vxi11_core_srv = vxi11_srv.vxi11_srv(port=1025)
-    vxi11_async_srv = vxi11_srv.vxi11_srv(port=1026)
+    vxi11_core_srv = vxi11_srv.vxi11_srv(port=1025,adapters=[adapter_time.adapter()])
+    vxi11_async_srv = vxi11_srv.vxi11_srv(port=1026,adapters=[])
     
     mapper = portmapper()
-    mapper.mapping[(vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION,portmap_const.IPPROTO_TCP)] = 1025
-    mapper.mapping[(vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_ASYNC_VERSION,portmap_const.IPPROTO_TCP)] = 1026
+    mapper.mapping[(vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_ASYNC_VERSION,portmap_const.IPPROTO_TCP)] = 1025
+    mapper.mapping[(vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION,portmap_const.IPPROTO_TCP)] = 1026
     
     pm_srv = portmap_srv(mapper=mapper,port=111)
     pm_task = asyncio.create_task(pm_srv.main())
