@@ -35,10 +35,6 @@
 import asyncio
 import enum
 import struct
-from pprint import pprint
-
-import rpc_const, rpc_type
-from rpc_pack import RPCPacker, RPCUnpacker
 
 import rpc_srv
 
@@ -158,7 +154,7 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         arg_up.set_position(buf_ix)
         arg = arg_up.unpack_Device_Link()
         print(f"destroy_link >>> {arg}")
-        link = self.links.get(arg.lid)
+        link = self.links.get(arg)
         if (link is not None):
             err = await link.destroy()
             del self.links[arg]
@@ -272,13 +268,28 @@ class vxi11_abort_conn(rpc_srv.rpc_conn):
         self.srv = srv
         super().__init__()
         
-    async def handle_abort(self,rpc_msg, buf, buf_ix):
-        pass
+    async def handle_device_abort(self,rpc_msg, buf, buf_ix):
+        """Device_Error device_abort (Device_Link) = 1;"""
+        arg_up = VXI11Unpacker(buf)
+        arg_up.set_position(buf_ix)
+        arg = arg_up.unpack_Device_Link()
+        print(f"device_local >>> {arg}")
+        link = self.links.get(arg)
+        #if (link is not None):
+        #    err = await link.local(flags = arg.flags,lock_timeout = arg.lock_timeout,
+        #        io_timeout = arg.io_timeout)
+        #else:
+        err = vxi11_errorCodes.OPERATION_NOT_SUPPORTED # Not a valid return code. :( But ....
+        
+        rsp = vxi11_type.Device_Error(error=err)
+        print(f"device_local <<< {rsp}")
+        p = VXI11Packer()
+        p.pack_Device_Error(rsp)
+        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
     
     call_dispatch_table = {
-            (vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION, vxi11_const.create_link): handle_abort
+            (vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION, vxi11_const.device_abort): handle_device_abort
             }
-
 
 class vxi11_srv(rpc_srv.rpc_srv):
     """ 
