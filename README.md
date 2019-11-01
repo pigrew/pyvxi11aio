@@ -3,6 +3,7 @@ This implements a VXI-11 server, using Python 3.7 in a cross-platform way.
 Some design goals/notes:
 
 * Use asyncio to handle multiple connections (one connection per target instrument)
+  - This seems to be the first Python asyncio Sun/ONC RPC server on GitHub, and may be useful for other projects as a RPC server
 * Be usable as a gateway to a USBTMC device (via pyvisa) or Prologix GPIB adapter
 * Have its own portmapper implementation, for platforms like Windows which don't
   have one by default.
@@ -26,3 +27,4 @@ Current status:
 * NI VISA can create connections to the server
 * Portmapper returns static mappings
 * 5 of 15 RPC calls have stub implementations
+* Abort and interrupt channels not implemented

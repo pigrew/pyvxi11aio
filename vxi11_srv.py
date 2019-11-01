@@ -162,12 +162,57 @@ class vxi11_conn(rpc_srv.rpc_conn):
         p.pack_Device_Error(rsp)
         return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
     
+    async def handle_device_trigger(self,rpc_msg, buf, buf_ix):
+        """Device_Error       device_trigger     (Device_GenericParms)   = 14; """
+        arg_up = VXI11Unpacker(buf)
+        arg_up.set_position(buf_ix)
+        arg = arg_up.unpack_Device_GenericParms()
+        print(f"device_trigger >>> {arg}")
+        link = self.links[arg.lid]
+        err = await link.trigger(flags = arg.flags,lock_timeout = arg.lock_timeout,
+            io_timeout = arg.io_timeout)
+        
+        rsp = vxi11_type.Device_Error(error=err)
+        print(f"device_trigger <<< {rsp}")
+        p = VXI11Packer()
+        p.pack_Device_Error(rsp)
+        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+    
+    async def handle_device_clear(self,rpc_msg, buf, buf_ix):
+        """Device_Error       device_clear       (Device_GenericParms)   = 15; s """
+        arg_up = VXI11Unpacker(buf)
+        arg_up.set_position(buf_ix)
+        arg = arg_up.unpack_Device_GenericParms()
+        print(f"device_clear >>> {arg}")
+        link = self.links[arg.lid]
+        err = await link.clear(flags = arg.flags,lock_timeout = arg.lock_timeout,
+            io_timeout = arg.io_timeout)
+        
+        rsp = vxi11_type.Device_Error(error=err)
+        print(f"device_clear <<< {rsp}")
+        p = VXI11Packer()
+        p.pack_Device_Error(rsp)
+        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+    
+    async def handle_device_local(self,rpc_msg, buf, buf_ix):
+        """Device_Error       device_local       (Device_GenericParms)   = 17;"""
+        arg_up = VXI11Unpacker(buf)
+        arg_up.set_position(buf_ix)
+        arg = arg_up.unpack_Device_GenericParms()
+        print(f"device_local >>> {arg}")
+        link = self.links[arg.lid]
+        err = await link.local(flags = arg.flags,lock_timeout = arg.lock_timeout,
+            io_timeout = arg.io_timeout)
+        
+        rsp = vxi11_type.Device_Error(error=err)
+        print(f"device_local <<< {rsp}")
+        p = VXI11Packer()
+        p.pack_Device_Error(rsp)
+        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+    
     # (prog, vers, proc) => func(self,rpc_msg, buf, buf_ix)
     """
-    Device_Error       device_trigger     (Device_GenericParms)   = 14; 
-    Device_Error       device_clear       (Device_GenericParms)   = 15; 
     Device_Error       device_remote      (Device_GenericParms)   = 16; 
-    Device_Error       device_local       (Device_GenericParms)   = 17; 
     Device_Error       device_lock        (Device_LockParms)      = 18; 
     Device_Error       device_unlock      (Device_Link)           = 19; 
     Device_Error       device_enable_srq  (Device_EnableSrqParms) = 20; 
@@ -181,6 +226,9 @@ class vxi11_conn(rpc_srv.rpc_conn):
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_read): handle_device_read,
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_readstb): handle_device_readstb,
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.destroy_link): handle_destroy_link,
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_trigger): handle_device_trigger,
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_clear): handle_device_clear,
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_local): handle_device_local,
     }
     
 class vxi11_srv(rpc_srv.rpc_srv):

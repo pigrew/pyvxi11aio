@@ -64,6 +64,31 @@ class vxi11_link:
         """
         return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED,0)
     
+    async def trigger(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int):
+        """Return (errorCode)
+        
+        Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
+        DEVICE_LOCKED_BY_ANOTHER_LINK, IO_TIMEOUT, IO_ERROR, or ABORT
+        """
+        return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED)
+    
+    async def clear(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int):
+        """Return (errorCode)
+        
+        Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
+        DEVICE_LOCKED_BY_ANOTHER_LINK, IO_TIMEOUT, IO_ERROR, or ABORT
+        """
+        return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED)
+    
+    
+    async def local(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int):
+        """Return (errorCode)
+        
+        Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
+        DEVICE_LOCKED_BY_ANOTHER_LINK, IO_TIMEOUT, IO_ERROR, or ABORT
+        """
+        return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED)
+    
     async def destroy(self):
         """If it got here, link must exist. NO_ERROR is only valid response"""
         return vxi11_errorCodes.NO_ERROR
