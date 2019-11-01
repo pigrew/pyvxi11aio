@@ -94,8 +94,8 @@ async def main():
     vxi11_async_srv = vxi11_srv.vxi11_srv(port=1026,adapters=[])
     
     mapper = portmapper()
+    # Only core channel needs to be mapped
     mapper.mapping[(vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_ASYNC_VERSION,portmap_const.IPPROTO_TCP)] = 1025
-    mapper.mapping[(vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION,portmap_const.IPPROTO_TCP)] = 1026
     
     pm_srv = portmap_srv(mapper=mapper,port=111)
     pm_task = asyncio.create_task(pm_srv.main())

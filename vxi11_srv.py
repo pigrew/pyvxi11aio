@@ -72,7 +72,7 @@ class vxi11_readReason(enum.IntFlag):
     CHR      = 0x02
     END      = 0x84
 
-class vxi11_conn(rpc_srv.rpc_conn):
+class vxi11_core_conn(rpc_srv.rpc_conn):
     def __init__(self,srv):
         self.links = dict()
         self.srv = srv
@@ -266,7 +266,20 @@ class vxi11_conn(rpc_srv.rpc_conn):
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_remote): handle_device_remote,
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_local): handle_device_local,
     }
+class vxi11_abort_conn(rpc_srv.rpc_conn):
+    def __init__(self,srv):
+        self.links = dict()
+        self.srv = srv
+        super().__init__()
+        
+    async def handle_abort(self,rpc_msg, buf, buf_ix):
+        pass
     
+    call_dispatch_table = {
+            (vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION, vxi11_const.create_link): handle_abort
+            }
+
+
 class vxi11_srv(rpc_srv.rpc_srv):
     """ 
     mapping member is a map from (prog,vers,prot) to uint
@@ -277,4 +290,4 @@ class vxi11_srv(rpc_srv.rpc_srv):
         super().__init__(port)
     
     def create_conn(self):
-        return vxi11_conn(self)
+        return vxi11_core_conn(self)
