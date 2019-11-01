@@ -46,7 +46,7 @@ struct Device_ReadParms {
     unsigned int     io_timeout;   /* time to wait for I/O */ 
     unsigned int     lock_timeout; /* time to wait for lock */ 
     Device_Flags     flags; 
-    char             termChar;     /* valid if flags & termchrset */
+    unsigned int     termChar;     /* valid if flags & termchrset (was "char") */
 }; 
 struct Device_ReadResp { 
     Device_ErrorCode  error; 
@@ -55,7 +55,7 @@ struct Device_ReadResp {
 }; 
 struct Device_ReadStbResp { 
     Device_ErrorCode  error;   /* error code */ 
-    opaque     stb[1];     /* the returned status byte (was "unsigned char")*/ 
+    unsigned int      stb;     /* the returned status byte (was "unsigned char")*/ 
 }; 
 struct Device_GenericParms { 
     Device_Link     lid;          /* Device_Link id from connect call */ 
