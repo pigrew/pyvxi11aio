@@ -148,24 +148,6 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         p.pack_Device_ReadStbResp(rsp)
         return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
     
-    async def handle_destroy_link(self,rpc_msg, buf, buf_ix):
-        """Device_Error       destroy_link       (Device_Link)           = 23; """
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_Link()
-        print(f"destroy_link >>> {arg}")
-        link = self.links.get(arg)
-        if (link is not None):
-            err = await link.destroy()
-            del self.links[arg]
-        else:
-            err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
-        rsp = vxi11_type.Device_Error( error=err)
-        print(f"destroy_link <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
-    
     async def handle_device_trigger(self,rpc_msg, buf, buf_ix):
         """Device_Error       device_trigger     (Device_GenericParms)   = 14; """
         arg_up = VXI11Unpacker(buf)
@@ -241,26 +223,69 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         p.pack_Device_Error(rsp)
         return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
     
+    async def handle_destroy_link(self,rpc_msg, buf, buf_ix):
+        """Device_Error       destroy_link       (Device_Link)           = 23; """
+        arg_up = VXI11Unpacker(buf)
+        arg_up.set_position(buf_ix)
+        arg = arg_up.unpack_Device_Link()
+        print(f"destroy_link >>> {arg}")
+        link = self.links.get(arg)
+        if (link is not None):
+            err = await link.destroy()
+            del self.links[arg]
+        else:
+            err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
+        rsp = vxi11_type.Device_Error( error=err)
+        print(f"destroy_link <<< {rsp}")
+        p = VXI11Packer()
+        p.pack_Device_Error(rsp)
+        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+    
+    async def handle_create_intr_chan(self,rpc_msg, buf, buf_ix):
+        """Device_Error       create_intr_chan   (Device_RemoteFunc)     = 25;"""
+        arg_up = VXI11Unpacker(buf)
+        arg_up.set_position(buf_ix)
+        arg = arg_up.unpack_Device_RemoteFunc()
+        print(f"create_intr_chan >>> {arg}")
+        err = vxi11_errorCodes.OPERATION_NOT_SUPPORTED # This isn't implemented.... (used for SRQ)
+        
+        rsp = vxi11_type.Device_Error(error=err)
+        print(f"create_intr_chan <<< {rsp}")
+        p = VXI11Packer()
+        p.pack_Device_Error(rsp)
+        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+    
+    async def handle_destroy_intr_chan(self,rpc_msg, buf, buf_ix):
+        """Device_Error       destroy_intr_chan  (void)                  = 26;"""
+        print(f"destroy_intr_chan >>> {arg}")
+        err = vxi11_errorCodes.CHANNEL_NOT_ESTABLED
+        
+        rsp = vxi11_type.Device_Error(error=err)
+        print(f"destroy_intr_chan <<< {rsp}")
+        p = VXI11Packer()
+        p.pack_Device_Error(rsp)
+        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+    
     # (prog, vers, proc) => func(self,rpc_msg, buf, buf_ix)
     """
     Device_Error       device_lock        (Device_LockParms)      = 18; 
     Device_Error       device_unlock      (Device_Link)           = 19; 
     Device_Error       device_enable_srq  (Device_EnableSrqParms) = 20; 
     Device_DocmdResp   device_docmd       (Device_DocmdParms)     = 22; 
-    Device_Error       create_intr_chan   (Device_RemoteFunc)     = 25; 
-    Device_Error       destroy_intr_chan  (void)                  = 26;
     """
     
     call_dispatch_table = {
-            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.create_link): handle_create_link,
-            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_write): handle_device_write,
-            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_read): handle_device_read,
-            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_readstb): handle_device_readstb,
-            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.destroy_link): handle_destroy_link,
-            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_trigger): handle_device_trigger,
-            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_clear): handle_device_clear,
-            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_remote): handle_device_remote,
-            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_local): handle_device_local,
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.create_link): handle_create_link, # 10
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_write): handle_device_write, # 11
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_read): handle_device_read, # 12
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_readstb): handle_device_readstb, # 13
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_trigger): handle_device_trigger, # 14
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_clear): handle_device_clear, # 15
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_remote): handle_device_remote, # 16
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_local): handle_device_local, # 17
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.destroy_link): handle_destroy_link, # 23
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.create_intr_chan): handle_create_intr_chan, # 25
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.destroy_intr_chan): handle_destroy_intr_chan, # 26
     }
 class vxi11_abort_conn(rpc_srv.rpc_conn):
     def __init__(self,srv):
@@ -275,11 +300,10 @@ class vxi11_abort_conn(rpc_srv.rpc_conn):
         arg = arg_up.unpack_Device_Link()
         print(f"device_local >>> {arg}")
         link = self.links.get(arg)
-        #if (link is not None):
-        #    err = await link.local(flags = arg.flags,lock_timeout = arg.lock_timeout,
-        #        io_timeout = arg.io_timeout)
-        #else:
-        err = vxi11_errorCodes.OPERATION_NOT_SUPPORTED # Not a valid return code. :( But ....
+        if (link is not None):
+            err = vxi11_errorCodes.NO_ERROR # We don't really do it, but this is kinda following the spec
+        else:
+            err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         
         rsp = vxi11_type.Device_Error(error=err)
         print(f"device_local <<< {rsp}")
@@ -291,7 +315,7 @@ class vxi11_abort_conn(rpc_srv.rpc_conn):
             (vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION, vxi11_const.device_abort): handle_device_abort
             }
 
-class vxi11_srv(rpc_srv.rpc_srv):
+class vxi11_core_srv(rpc_srv.rpc_srv):
     """ 
     mapping member is a map from (prog,vers,prot) to uint
     """
@@ -302,3 +326,15 @@ class vxi11_srv(rpc_srv.rpc_srv):
     
     def create_conn(self):
         return vxi11_core_conn(self)
+
+class vxi11_async_srv(rpc_srv.rpc_srv):
+    """ 
+    mapping member is a map from (prog,vers,prot) to uint
+    """
+    def __init__(self,port,adapters):
+        self.adapters = adapters
+        self.next_link_id = 0
+        super().__init__(port)
+    
+    def create_conn(self):
+        return vxi11_async_conn(self)

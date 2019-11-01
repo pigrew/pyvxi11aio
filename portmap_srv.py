@@ -90,8 +90,8 @@ class portmap_srv(rpc_srv.rpc_srv):
 #    return res
 async def main():
     
-    vxi11_core_srv = vxi11_srv.vxi11_srv(port=1025,adapters=[adapter_time.adapter()])
-    vxi11_async_srv = vxi11_srv.vxi11_srv(port=1026,adapters=[])
+    vxi11_core_srv = vxi11_srv.vxi11_core_srv(port=1025,adapters=[adapter_time.adapter()])
+    vxi11_async_srv = vxi11_srv.vxi11_async_srv(port=1026,adapters=[])
     
     mapper = portmapper()
     # Only core channel needs to be mapped
