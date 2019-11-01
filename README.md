@@ -26,5 +26,6 @@ Some design goals/notes:
 Current status:
 * NI VISA can create connections to the server
 * Portmapper returns static mappings
-* 5 of 15 RPC calls have stub implementations
+* 8 of 15 RPC calls have stub implementations
 * Abort and interrupt channels not implemented
+* Locking not implemented
