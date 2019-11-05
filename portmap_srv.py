@@ -32,16 +32,20 @@
 
 # Connect to TCPIP0::127.0.0.1::INSTR
 
+import sys
+if not sys.warnoptions:
+    import os, warnings
+    warnings.simplefilter("default") # Change the filter in this process
+    os.environ["PYTHONWARNINGS"] = "default" # Also affect subprocesses
+
 import asyncio
-from enum import Enum
+#from enum import Enum
 import struct
-from pprint import pprint
+#from pprint import pprint
 
-import portmap_const, portmap_type
+import portmap_const
+#import portmap_type
 from portmap_pack import PORTMAPPacker, PORTMAPUnpacker
-
-import rpc_const, rpc_type
-from rpc_pack import RPCPacker, RPCUnpacker
 
 import vxi11_const
 
@@ -107,5 +111,6 @@ async def main():
     await asyncio.gather(*tasks, return_exceptions=True)
     
 if  __name__ == "__main__":
+    
     #pm_srv.start()
     asyncio.run(main())

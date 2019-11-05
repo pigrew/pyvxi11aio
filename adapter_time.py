@@ -43,10 +43,10 @@ from vxi11_adapter import vxi11_link, vxi11_adapter
 
 
 class link(vxi11_link):
-    def __init__(self, link_id: int, device: bytes):
+    def __init__(self, link_id: int, device: bytes, adapter: 'adapter'):
         self.outBuf = None
-        self.link_id = link_id
         self.device_name = device
+        super().__init__(link_id=link_id, adapter=adapter)
         
     async def write(self, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, data: bytes):
         """Return (errorCode, size)
@@ -88,5 +88,5 @@ class adapter(vxi11_adapter):
         """ Returns (errorcode,link)"""
         # Errorcode may be NO_ERROR, SYNTAX_ERROR, DEVICE_NOT_ACCESSIBLE,
         #    OUT_OF_RESOURCES, DEVICE_LOCKED_BY_ANOTHER_LINK, INVALID_ADDRESS
-        return (vxi11_errorCodes.NO_ERROR,link(link_id,device))
+        return (vxi11_errorCodes.NO_ERROR,link(link_id=link_id,device=device,adapter=self))
     

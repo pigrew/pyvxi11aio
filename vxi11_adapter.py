@@ -32,14 +32,14 @@
 
 # This implements a "time-server" adapter
 
-import asyncio
-import enum
-import struct
-from pprint import pprint
-
 from vxi11_srv import vxi11_deviceFlags, vxi11_errorCodes
 
 class vxi11_link:
+    
+    def __init__(self, link_id: int, adapter: 'vxi11_adapter'):
+        self.adapter = adapter
+        self.link_id = link_id
+        
     async def read(self, requestSize: int, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, termChar: int):
         """Return (errorCode, vxi11_readReason, data: bytes)
         
@@ -95,13 +95,37 @@ class vxi11_link:
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
         DEVICE_LOCKED_BY_ANOTHER_LINK, IO_TIMEOUT, IO_ERROR, or ABORT
         """
-        return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED)
+        return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED)  
+    
+    async def device_lock(self, flags: vxi11_deviceFlags, lock_timeout: int):
+        """Return (errorCode)
+        
+        Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER,
+        DEVICE_LOCKED_BY_ANOTHER_LINK, or ABORT
+        """
+        if(self.adapter.adapter_lock is None):
+            self.adapter.adapter_lock = self
+            return (vxi11_errorCodes.NO_ERROR) 
+        return (vxi11_errorCodes.DEVICE_LOCKED_OUT_BY_ANOTHER_LINK) 
+    
+    async def device_unlock(self):
+        """Return (errorCode)
+        
+        Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, NO_LOCK_HELD_BY_THIS_LINK
+        """
+        if(self.adapter.adapter_lock is self):
+            self.adapter.adapter_lock = None
+            return (vxi11_errorCodes.NO_ERROR)
+        return (vxi11_errorCodes.NO_LOCK_HELD_BY_THIS_LINK)
     
     async def destroy(self):
         """If it got here, link must exist. NO_ERROR is only valid response"""
         return vxi11_errorCodes.NO_ERROR
     
 class vxi11_adapter:
+    # By default, "adapter" lock is used by default link implementation.
+    adapter_lock = None
+    
     async def create_link(self, clientId: int, lockDevice: bool, lock_timeout: int, device: bytes, link_id: int):
         """ Returns (errorcode,link)"""
         # Errorcode may be NO_ERROR, SYNTAX_ERROR, DEVICE_NOT_ACCESSIBLE,

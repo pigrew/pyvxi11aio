@@ -223,6 +223,39 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         p.pack_Device_Error(rsp)
         return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
     
+    async def handle_device_lock(self,rpc_msg, buf, buf_ix):
+        """Device_Error       device_lock        (Device_LockParms)      = 18;"""
+        arg_up = VXI11Unpacker(buf)
+        arg_up.set_position(buf_ix)
+        arg = arg_up.unpack_Device_LockParms()
+        print(f"device_lock >>> {arg}")
+        link = self.links.get(arg.lid)
+        if (link is not None):
+            err = await link.device_lock(flags=arg.flags, lock_timeout=arg.lock_timeout)
+        else:
+            err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
+        
+        rsp = vxi11_type.Device_Error(error=err)
+        print(f"device_lock <<< {rsp}")
+        p = VXI11Packer()
+        p.pack_Device_Error(rsp)
+        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+    async def handle_device_unlock(self,rpc_msg, buf, buf_ix):
+        """Device_Error       device_unlock      (Device_Link)           = 19;"""
+        arg_up = VXI11Unpacker(buf)
+        arg_up.set_position(buf_ix)
+        arg = arg_up.unpack_Device_Link()
+        print(f"device_unlock >>> {arg}")
+        link = self.links.get(arg)
+        if (link is not None):
+            err = await link.device_unlock()
+        else:
+            err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
+        rsp = vxi11_type.Device_Error( error=err)
+        print(f"device_unlock <<< {rsp}")
+        p = VXI11Packer()
+        p.pack_Device_Error(rsp)
+        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
     async def handle_destroy_link(self,rpc_msg, buf, buf_ix):
         """Device_Error       destroy_link       (Device_Link)           = 23; """
         arg_up = VXI11Unpacker(buf)
@@ -268,8 +301,6 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
     
     # (prog, vers, proc) => func(self,rpc_msg, buf, buf_ix)
     """
-    Device_Error       device_lock        (Device_LockParms)      = 18; 
-    Device_Error       device_unlock      (Device_Link)           = 19; 
     Device_Error       device_enable_srq  (Device_EnableSrqParms) = 20; 
     Device_DocmdResp   device_docmd       (Device_DocmdParms)     = 22; 
     """
@@ -283,6 +314,8 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_clear): handle_device_clear, # 15
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_remote): handle_device_remote, # 16
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_local): handle_device_local, # 17
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_lock): handle_device_lock, # 18
+            (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_unlock): handle_device_unlock, # 19
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.destroy_link): handle_destroy_link, # 23
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.create_intr_chan): handle_create_intr_chan, # 25
             (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.destroy_intr_chan): handle_destroy_intr_chan, # 26
