@@ -99,10 +99,10 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         arg_up = VXI11Unpacker(buf)
         arg_up.set_position(buf_ix)
         arg = arg_up.unpack_Device_WriteParms()
-        print(f"device_write >>> {arg} (flags={vxi11_errorCodes(arg.flags)})")
+        print(f"device_write >>> {arg} (flags={vxi11_deviceFlags(arg.flags)})")
         link = self.links[arg.lid]
         (err,size) = await link.write(io_timeout = arg.io_timeout,
-            lock_timeout = arg.lock_timeout, flags = arg.flags, data = arg.data)
+            lock_timeout = arg.lock_timeout, flags = vxi11_deviceFlags(arg.flags), data = arg.data)
         
         rsp = vxi11_type.Device_WriteResp(error=err, size=size)
         
@@ -121,7 +121,7 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         if (link is not None):
             (err,reason,data) = await link.read(requestSize = arg.requestSize,
                 io_timeout = arg.io_timeout, lock_timeout = arg.lock_timeout,
-                flags = arg.flags, termChar = arg.termChar)
+                flags = vxi11_deviceFlags(arg.flags), termChar = arg.termChar)
         else:
             (err,reason,data) = (vxi11_errorCodes.INVALID_LINK_IDENTIFIER,0,b'')
         rsp = vxi11_type.Device_ReadResp(error=err, reason=reason, data=data)
@@ -138,7 +138,7 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         print(f"device_readstb >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
-            (err,stb) = await link.read_stb(flags = arg.flags,lock_timeout = arg.lock_timeout,
+            (err,stb) = await link.read_stb(flags = vxi11_deviceFlags(arg.flags),lock_timeout = arg.lock_timeout,
                 io_timeout = arg.io_timeout)
         else:
             (err,stb) = (vxi11_errorCodes.INVALID_LINK_IDENTIFIER,0)
@@ -156,7 +156,7 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         print(f"device_trigger >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
-            err = await link.trigger(flags = arg.flags,lock_timeout = arg.lock_timeout,
+            err = await link.trigger(flags = vxi11_deviceFlags(arg.flags),lock_timeout = arg.lock_timeout,
                 io_timeout = arg.io_timeout)
         else:
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
@@ -174,7 +174,7 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         print(f"device_clear >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
-            err = await link.clear(flags = arg.flags,lock_timeout = arg.lock_timeout,
+            err = await link.clear(flags = vxi11_deviceFlags(arg.flags),lock_timeout = arg.lock_timeout,
                 io_timeout = arg.io_timeout)
         else:
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
@@ -193,7 +193,7 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         print(f"device_remote >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
-            err = await link.clear(flags = arg.flags,lock_timeout = arg.lock_timeout,
+            err = await link.clear(flags = vxi11_deviceFlags(arg.flags),lock_timeout = arg.lock_timeout,
                 io_timeout = arg.io_timeout)
         else:
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
@@ -212,7 +212,7 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         print(f"device_local >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
-            err = await link.local(flags = arg.flags,lock_timeout = arg.lock_timeout,
+            err = await link.local(flags = vxi11_deviceFlags(arg.flags),lock_timeout = arg.lock_timeout,
                 io_timeout = arg.io_timeout)
         else:
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
@@ -231,7 +231,7 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         print(f"device_lock >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
-            err = await link.device_lock(flags=arg.flags, lock_timeout=arg.lock_timeout)
+            err = await link.device_lock(flags=vxi11_deviceFlags(arg.flags), lock_timeout=arg.lock_timeout)
         else:
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         
@@ -264,8 +264,10 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         print(f"destroy_link >>> {arg}")
         link = self.links.get(arg)
         if (link is not None):
-            err = await link.destroy()
+            # Remove link prior to destroying it, to ensure another connection
+            # doesn't use the link in the meanwhile
             del self.links[arg]
+            err = await link.destroy()
         else:
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         rsp = vxi11_type.Device_Error( error=err)

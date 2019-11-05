@@ -54,12 +54,15 @@ class link(vxi11_link):
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, PARAMETER_ERROR,
         DEVICE_LOCKED_BY_ANOTHER_LINK, IO_TIMEOUT, IO_ERROR, or abort
         """
+        await self.acquire_io_lock(flags,lock_timeout=lock_timeout, io_timeout=io_timeout)
         if(data.lower().startswith(b'*idn?')):
             self.outBuf = b"TIME_SERVER,0," + self.device_name + b'\n'
         elif(data.lower().startswith("time?")):
             self.outBuf = str.encode(time.strftime("%H:%M:%S +0000", time.gmtime()))
         else:
             self.outBuf = b"INVALID_QUERY\n"
+        self.release_io_lock()
+            
         return (vxi11_errorCodes.NO_ERROR,len(data))
         
     async def read(self, requestSize: int, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, termChar: int):
@@ -84,6 +87,9 @@ class link(vxi11_link):
         return (vxi11_errorCodes.NO_ERROR,0x23)
     
 class adapter(vxi11_adapter):
+    def __init__(self):
+        super().__init__()
+        
     async def create_link(self, clientId: int, lockDevice: bool, lock_timeout: int, device: bytes, link_id: int):
         """ Returns (errorcode,link)"""
         # Errorcode may be NO_ERROR, SYNTAX_ERROR, DEVICE_NOT_ACCESSIBLE,

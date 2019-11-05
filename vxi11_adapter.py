@@ -30,8 +30,25 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 
-# This implements a "time-server" adapter
+# This implements an abstract class for a VXI "adapter".
 
+# see discussion of locking at https://github.com/python-ivi/python-vxi11/issues/16
+
+
+# The locking of the server/link is a little underspecified in the spec.
+# 
+# This default implementation has two locks, excl_lock and io_lock. The
+# adapter has one of each lock, though implementations probably want to do
+# things differently.
+#
+# IO operations first check that no other connection has an exclusive lock,
+# optionally waiting for that lock.The IO timeout value is used during
+# waiting for the IO lock
+#
+# Then, an IO lock is acquired for the particular operation. Here, the
+# IO lock is global to the adapter.
+
+import asyncio
 from vxi11_srv import vxi11_deviceFlags, vxi11_errorCodes
 
 class vxi11_link:
@@ -97,34 +114,88 @@ class vxi11_link:
         """
         return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED)  
     
+    async def destroy(self):
+        """If it got here, link must exist. NO_ERROR is only valid response"""
+        # Unlock if necessary
+        if(self.adapter.adapter_excl_lock_owner is self):
+            self.adapter.adapter_excl_lock_owner = None
+            self.adapter.adapter_excl_lock.release()
+        return vxi11_errorCodes.NO_ERROR
+    
     async def device_lock(self, flags: vxi11_deviceFlags, lock_timeout: int):
         """Return (errorCode)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER,
         DEVICE_LOCKED_BY_ANOTHER_LINK, or ABORT
         """
-        if(self.adapter.adapter_lock is None):
-            self.adapter.adapter_lock = self
-            return (vxi11_errorCodes.NO_ERROR) 
-        return (vxi11_errorCodes.DEVICE_LOCKED_OUT_BY_ANOTHER_LINK) 
+        if(self.adapter.adapter_excl_lock_owner is self):
+            return (vxi11_errorCodes.DEVICE_LOCKED_OUT_BY_ANOTHER_LINK)
+        
+        if(flags.WAITLOCK): # requesting waiting
+            try:
+                await asyncio.wait_for(self.adapter.adapter_excl_lock.acquire(), timeout=(lock_timeout+1)/1000.0)
+            except asyncio.TimeoutError:
+                return (vxi11_errorCodes.DEVICE_LOCKED_OUT_BY_ANOTHER_LINK) 
+        else:
+            if(self.adapter.adapter_excl_lock_owner is not None and self.adapter.adapter_excl_lock_owner is not self):
+                return (vxi11_errorCodes.DEVICE_LOCKED_OUT_BY_ANOTHER_LINK)
+            await self.adapter.adapter_excl_lock.acquire()
+        self.adapter.adapter_excl_lock_owner = self
+        return (vxi11_errorCodes.NO_ERROR) 
     
     async def device_unlock(self):
         """Return (errorCode)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, NO_LOCK_HELD_BY_THIS_LINK
         """
-        if(self.adapter.adapter_lock is self):
-            self.adapter.adapter_lock = None
+        if(self.adapter.adapter_excl_lock_owner is self):
+            self.adapter.adapter_excl_lock.release()
+            self.adapter.adapter_excl_lock_owner = None
             return (vxi11_errorCodes.NO_ERROR)
         return (vxi11_errorCodes.NO_LOCK_HELD_BY_THIS_LINK)
     
-    async def destroy(self):
-        """If it got here, link must exist. NO_ERROR is only valid response"""
-        return vxi11_errorCodes.NO_ERROR
+    async def acquire_io_lock(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int) -> bool:
+        """Returns true if lock is acquired.
+        
+        There is a semblance of a race condition, as specified in the spec, where a IO
+        operation does not prevent another link from acquiring the exclusive lock"""
+        
+        # Forst, check on the exclusive lock
+        if(flags.WAITLOCK): # requesting waiting
+            # Does another link already hold the exclusive lock?
+            if((self.adapter.adapter_excl_lock_owner is not None) and (self.adapter.adapter_excl_lock_owner is not self)):
+                try:
+                    # Take lock temporarily as a way to implement the timeout
+                    await asyncio.wait_for(self.adapter.adapter_excl_lock.acquire(), timeout=(1+lock_timeout)/1000.0)
+                    self.adapter.adapter_excl_lock.release()
+                except asyncio.TimeoutError:
+                    return False
+            
+        else: # requesting no waiting
+            # Does another link already hold the excl lock?
+            if(self.adapter.adapter_excl_lock_owner is not None and self.adapter.adapter_excl_lock_owner is not self):
+                return False
+            
+        # Wait for up to io_timeout to get the io_lock
+        try:
+            await asyncio.wait_for(self.adapter.adapter_io_lock.acquire(), timeout=(1+io_timeout)/1000.0)
+        except asyncio.TimeoutError:
+            return False
+        return True
+        
+    def release_io_lock(self):
+        """Returns true if lock is acquired"""
+        self.adapter.adapter_io_lock.release()
+
+class vxi11_adapter:   
+    adapter_io_lock: asyncio.Lock
+    adapter_excl_lock: asyncio.Lock
+    adapter_excl_lock_owner: vxi11_link
     
-class vxi11_adapter:
-    # By default, "adapter" lock is used by default link implementation.
-    adapter_lock = None
+    def __init__(self):
+        self.adapter_io_lock = asyncio.Lock()
+        self.adapter_excl_lock = asyncio.Lock()
+        self.adapter_excl_lock_owner = None
     
     async def create_link(self, clientId: int, lockDevice: bool, lock_timeout: int, device: bytes, link_id: int):
         """ Returns (errorcode,link)"""
