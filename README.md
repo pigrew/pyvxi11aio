@@ -7,6 +7,7 @@ Some design goals/notes:
 
 * Works only on Windows, using its own static portmapper. A RPC client needs to be
   created in order to map things on systems already with a portmapper.
+  - On Linux, perhaps comment out the static portmapper (main.py), and manually register it with `rpcinfo -a .....` for both core and abort programs.
 * Uses asyncio to handle multiple connections (one connection per target instrument)
   - This seems to be the first Python asyncio Sun/ONC RPC server on GitHub, and may be useful for other projects as a RPC server
 * Be usable as a gateway to a USBTMC device (via pyvisa) or Prologix GPIB adapter
@@ -31,5 +32,6 @@ Current status:
 * Keysight and NI VISA can create connections to the server
 * Portmapper returns static mappings
 * All calls have stub implementations
-* Abort and interrupt channels not implemented
+* Interrupt channels not implemented
+* Abort channel has a do-nothing implementation
 * Time server "adapter" is written
