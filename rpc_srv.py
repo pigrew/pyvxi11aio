@@ -38,8 +38,8 @@ import struct
 from pprint import pprint
 from abc import ABC, abstractmethod, abstractproperty
 
-import rpc_const, rpc_type
-from rpc_pack import RPCPacker, RPCUnpacker
+import xdr.rpc_const as rpc_const, xdr.rpc_type as rpc_type
+from xdr.rpc_pack import RPCPacker, RPCUnpacker
 
 class rpc_conn(ABC):
     def __init__(self):

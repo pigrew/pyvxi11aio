@@ -43,11 +43,11 @@ import asyncio
 import struct
 #from pprint import pprint
 
-import portmap_const
+import xdr.portmap_const as portmap_const
 #import portmap_type
-from portmap_pack import PORTMAPPacker, PORTMAPUnpacker
+from xdr.portmap_pack import PORTMAPPacker, PORTMAPUnpacker
 
-import vxi11_const
+import xdr.vxi11_const
 
 import rpc_srv
 import vxi11_srv

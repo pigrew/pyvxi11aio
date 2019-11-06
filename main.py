@@ -37,8 +37,8 @@ import vxi11_srv
 import adapter_time
 import portmap_srv
 
-import vxi11_const
-import portmap_const
+import xdr.vxi11_const as vxi11_const
+import xdr.portmap_const as portmap_const
 
 
 async def main():

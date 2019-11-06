@@ -1,17 +1,22 @@
 This implements a VXI-11 server, using Python 3.7 in a cross-platform way.
 
+main.py starts the servers, by default using the "time_adapter". To use it
+with other hardware, new adapters will need to be written.
+
 Some design goals/notes:
 
-* Use asyncio to handle multiple connections (one connection per target instrument)
+* Works only on Windows, using its own static portmapper. A RPC client needs to be
+  created in order to map things on systems already with a portmapper.
+* Uses asyncio to handle multiple connections (one connection per target instrument)
   - This seems to be the first Python asyncio Sun/ONC RPC server on GitHub, and may be useful for other projects as a RPC server
 * Be usable as a gateway to a USBTMC device (via pyvisa) or Prologix GPIB adapter
-* Have its own portmapper implementation, for platforms like Windows which don't
+* Has its own portmapper implementation, for platforms like Windows which don't
   have one by default.
-* Listen only to 127.0.0.1, reducing the need for authentication (Does NI VISA even
+* Listens only to 127.0.0.1, reducing the need for authentication (Does NI VISA even
   support RPC authentication?).
-* Serve as an arbiter, juggling the bus between links
-* Require minimal non-standard Python libraries
-* Perform compile-time code generation from XDR files (xdrgen.py from PY NFS project)
+* Serves as an arbiter, juggling the bus between links
+* Requires minimal non-standard Python libraries
+* Performs compile-time code generation from XDR files (xdrgen.py from PY NFS project)
 * Single-threaded network stack
   - Adapter may operate in separate thread(s), but must operate as a asyncio task (with minimal busy states)
 * Code is BSD 3-clause licensed, except:
@@ -22,10 +27,9 @@ Some design goals/notes:
   - coburnw/python-vxi11-server
   - VXI-11 specification
 
-
 Current status:
-* NI VISA can create connections to the server
+* Keysight and NI VISA can create connections to the server
 * Portmapper returns static mappings
-* 8 of 15 RPC calls have stub implementations
+* All calls have stub implementations
 * Abort and interrupt channels not implemented
-* Locking not implemented
+* Time server "adapter" is written

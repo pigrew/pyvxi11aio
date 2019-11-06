@@ -38,8 +38,8 @@ import struct
 
 import rpc_srv
 
-import vxi11_const, vxi11_type
-from vxi11_pack import VXI11Packer, VXI11Unpacker
+import xdr.vxi11_const as vxi11_const, xdr.vxi11_type as vxi11_type
+from xdr.vxi11_pack import VXI11Packer, VXI11Unpacker
 
 class vxi11_errorCodes(enum.IntEnum):
     NO_ERROR = 0
