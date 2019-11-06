@@ -32,11 +32,10 @@
 
 # Connect to TCPIP0::127.0.0.1::INSTR
 
+import sys
 import asyncio
-from enum import Enum
 import struct
-from pprint import pprint
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 
 import xdr.rpc_const as rpc_const, xdr.rpc_type as rpc_type
 from xdr.rpc_pack import RPCPacker, RPCUnpacker
@@ -91,6 +90,8 @@ class rpc_srv(ABC):
             writer.write(reply_data)
         print(f"Closing socket")
         writer.close()
+        if(sys.hexversion > 0x03070000):
+            await writer.wait_closed()
         
     def pack_success_data_msg(xid,data):
         reply = rpc_type.rpc_msg(
