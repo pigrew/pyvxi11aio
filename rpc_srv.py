@@ -60,6 +60,7 @@ class rpc_conn(ABC):
 class rpc_srv(ABC):
     def __init__(self, port):
         self.port = port
+        self._server = None
     
     @abstractmethod
     def create_conn(self):
@@ -114,16 +115,20 @@ class rpc_srv(ABC):
         rpc_p.pack_fopaque(len(data),data)
         #print(f"rep_data={reply}")
         return rpc_p.get_buffer()
+    
+    async def open(self):
+        self._server = await asyncio.start_server(
+                self.HandleRPC, '127.0.0.1', self.port)
+        addr = self._server.sockets[0].getsockname()
+        print(f'Serving {self.__class__.__name__} on TCP {addr}')
+        self.actual_port = self._server.sockets[0].getsockname()[1]
         
     async def main(self):
-        server = await asyncio.start_server(
-                self.HandleRPC, '127.0.0.1', self.port)
-        print(server.sockets[0])
-        addr = server.sockets[0].getsockname()
-        print(f'Serving portmap on {addr}')
-        self.actual_port = server.sockets[0].getsockname()[1]
-        async with server:
-            await server.serve_forever()
+        if(self._server is None):
+            await self.open()
+        async with self._server:
+            await self._server.serve_forever()
         
-    def start(self):
-        asyncio.run(self.main(), debug=True)
+    #def start(self):
+    #    asyncio.run(self.main(), debug=True)
+        

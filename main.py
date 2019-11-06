@@ -43,13 +43,18 @@ import xdr.portmap_const as portmap_const
 
 async def main():
     
-    vxi11_core_srv = vxi11_srv.vxi11_core_srv(port=1025,adapters=[adapter_time.adapter()])
-    vxi11_async_srv = vxi11_srv.vxi11_async_srv(port=1026,adapters=[])
+    vxi11_core_srv = vxi11_srv.vxi11_core_srv(port=0,adapters=[adapter_time.adapter()])
+    vxi11_async_srv = vxi11_srv.vxi11_async_srv(port=0,adapters=[])
+    
+    # Open sockets so that we can get the actual port numbers
+    await asyncio.gather(vxi11_core_srv.open(),vxi11_async_srv.open())
     
     mapper = portmap_srv.portmapper()
     # although spec only specifies that core channel needs to be mapped, KeySight IO libraries want both mapped
-    mapper.mapping[(vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION,portmap_const.IPPROTO_TCP)] = 1025
-    mapper.mapping[(vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION,portmap_const.IPPROTO_TCP)] = 1026
+    mapper.mapping[(vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION,
+                    portmap_const.IPPROTO_TCP)] = vxi11_core_srv.actual_port
+    mapper.mapping[(vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION,
+                    portmap_const.IPPROTO_TCP)] = vxi11_async_srv.actual_port
     
     pm_srv = portmap_srv.portmap_srv(mapper=mapper,port=111)
     pm_task = asyncio.create_task(pm_srv.main())
