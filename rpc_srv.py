@@ -89,7 +89,9 @@ class rpc_srv(ABC):
                 raise Exception("cannot handle message")
             writer.write(struct.pack(">I",0x80000000 | len(reply_data)))
             writer.write(reply_data)
-    
+        print(f"Closing socket")
+        writer.close()
+        
     def pack_success_data_msg(xid,data):
         reply = rpc_type.rpc_msg(
             xid=xid,

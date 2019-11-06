@@ -113,6 +113,14 @@ class vxi11_link:
         DEVICE_LOCKED_BY_ANOTHER_LINK, IO_TIMEOUT, IO_ERROR, or ABORT
         """
         return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED)  
+    async def docmd(self, flags: vxi11_deviceFlags, io_timeout: int, lock_timeout: int,
+                    cmd: int, network_order: bool, datasize, data_in: bytes):
+        """Return (errorCode,data_out)
+        
+        Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
+        DEVICE_LOCKED_BY_ANOTHER_LINK, IO_TIMEOUT, IO_ERROR, or ABORT
+        """
+        return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED,b'')  
     
     async def destroy(self):
         """If it got here, link must exist. NO_ERROR is only valid response"""
