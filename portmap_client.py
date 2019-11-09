@@ -33,60 +33,29 @@
 # Connect to TCPIP0::127.0.0.1::INSTR
 
 import sys
-if not sys.warnoptions:
-    import os, warnings
-    warnings.simplefilter("default") # Change the filter in this process
-    os.environ["PYTHONWARNINGS"] = "default" # Also affect subprocesses
-
 import asyncio
-#from enum import Enum
 import struct
-#from pprint import pprint
+from abc import ABC, abstractmethod
 
+import xdr.rpc_const as rpc_const
+import xdr.portmap_type as portmap_type
 import xdr.portmap_const as portmap_const
-#import portmap_type
 from xdr.portmap_pack import PORTMAPPacker, PORTMAPUnpacker
+import rpc_client
 
-import xdr.vxi11_const
 
-import rpc_srv
-import vxi11_srv
-import adapter_time
-
-class portmapper():
-    def __init__(self):
-        self.mapping = {}
-
-class portmap_conn(rpc_srv.rpc_conn):
-    def __init__(self, mapper):
-        self.mapper = mapper
-        super().__init__()
-        
-    async def handle_getPort(self,rpc_msg, buf, buf_ix):
-        arg_up = PORTMAPUnpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_mapping()
-        print(f"mapping = {arg}")
-        port = self.mapper.mapping.get((arg.prog,arg.vers,arg.prot))
-        print(f"port is {port}, xid={rpc_msg.xid}")
-        if (port is None):
-            port = 0 # 0 signifies no result
-        data = struct.pack(">I",port)
-        data = rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,data)
-        return data
-    # (prog, vers, proc) => func(self,rpc_msg, buf, buf_ix)
-
-    call_dispatch_table = {
-            (portmap_const.PMAP_PROG,portmap_const.PMAP_VERS, portmap_const.PMAPPROC_GETPORT): handle_getPort
-    }
+async def main():
+    cl = rpc_client.rpc_client()
     
-class portmap_srv(rpc_srv.rpc_srv):
-    """ 
-    mapping member is a map from (prog,vers,prot) to uint
-    """
-    def __init__(self,port,mapper):
-        self.mapper = mapper
-        super().__init__(port)
-        
-    def create_conn(self):
-        return portmap_conn(self.mapper)
+    await cl.connect("127.0.0.1",portmap_const.PMAP_PORT)
+    mapping = portmap_type.mapping(prog=0x0607AF, vers=1, prot=portmap_const.IPPROTO_TCP, port=0)
+    p = PORTMAPPacker()
+    p.pack_mapping(mapping)
+    rsp, _ = await cl.call( portmap_const.PMAP_PROG, vers=portmap_const.PMAP_VERS,
+                  proc=portmap_const.PMAPPROC_GETPORT, data = p.get_buffer())
+    rsp, _ = await cl.call( portmap_const.PMAP_PROG, vers=portmap_const.PMAP_VERS,
+                  proc=portmap_const.PMAPPROC_GETPORT, data = p.get_buffer())
+    print(rsp)
+    await cl.close()
+
+asyncio.run(main())
