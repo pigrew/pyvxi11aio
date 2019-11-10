@@ -47,15 +47,16 @@ class rpc_conn(ABC):
     # (prog, vers, proc) => bytes handler_func(self,rpc_msg, buf, buf_ix)
     call_dispatch_table = None
     
-    def handleMsg(self,rpc_msg, buf, buf_ix):
+    async def handleMsg(self, rpc_msg: rpc_type.rpc_msg, buf, buf_ix: int):
         if(rpc_msg.body.mtype != rpc_const.CALL):
             return None
         cbody = rpc_msg.body.cbody
         handler = self.call_dispatch_table.get((cbody.prog,cbody.vers,cbody.proc))
         #print(f"dispatcher = {handler}")
         if(handler is None):
-            raise Exception(f"RPC(proc={cbody.proc}) not implemented")
-        return handler(self,rpc_msg, buf, buf_ix)
+            print(f"RPC(proc={cbody.proc}) not implemented")
+            return rpc_srv.pack_reply_msg_unsupported(rpc_msg.xid)
+        return await handler(self,rpc_msg, buf, buf_ix)
 
 class rpc_srv(ABC):
     def __init__(self, port):
@@ -100,7 +101,7 @@ class rpc_srv(ABC):
             body=rpc_type.rpc_msg_body(
                     mtype=rpc_const.REPLY,
                     rbody=rpc_type.reply_body(
-                        stat=rpc_const.SUCCESS,
+                        stat=rpc_const.MSG_ACCEPTED,
                         areply=rpc_type.accepted_reply(
                                 verf=rpc_type.opaque_auth(flavor=rpc_const.AUTH_NONE,body=b''),
                                 reply_data=rpc_type.rpc_reply_data(stat=rpc_const.SUCCESS,results=b'')
@@ -108,26 +109,29 @@ class rpc_srv(ABC):
                         )
                     )
             )
-    def pack_unsupported_data_msg(xid,data):
-        reply = rpc_type.rpc_msg(
-            xid=xid,
-            body=rpc_type.rpc_msg_body(
-                    mtype=rpc_const.REPLY,
-                    rbody=rpc_type.reply_body(
-                        stat=rpc_const.PROC_UNAVAIL,
-                        areply=rpc_type.rejected_reply(
-                                verf=rpc_type.opaque_auth(flavor=rpc_const.AUTH_NONE,body=b''),
-                                reply_data=rpc_type.rpc_reply_data(stat=rpc_const.SUCCESS,results=b'')
-                                )
-                        )
-                    )
-            )
-        
         rpc_p = RPCPacker()
         rpc_p.pack_rpc_msg(reply)
         # The generated packing functions don't actually append the data to be packed.
         rpc_p.pack_fopaque(len(data),data)
         #print(f"rep_data={reply}")
+        return rpc_p.get_buffer()             
+        
+    def pack_reply_msg_unsupported(xid):
+        reply = rpc_type.rpc_msg(
+            xid=xid,
+            body=rpc_type.rpc_msg_body(
+                    mtype=rpc_const.REPLY,
+                   rbody=rpc_type.reply_body(
+                        stat=rpc_const.MSG_ACCEPTED,
+                        areply=rpc_type.accepted_reply(
+                                verf=rpc_type.opaque_auth(flavor=rpc_const.AUTH_NONE,body=b''),
+                                reply_data=rpc_type.rpc_reply_data(stat=rpc_const.PROG_UNAVAIL)
+                                )
+                        )
+                    )
+            )
+        rpc_p = RPCPacker()
+        rpc_p.pack_rpc_msg(reply)
         return rpc_p.get_buffer()
     
     async def open(self):
