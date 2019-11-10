@@ -42,12 +42,19 @@ from xdr.rpc_pack import RPCPacker, RPCUnpacker
 
 class rpc_client():
     # Don't connect in the constructor, since it should be asynchronous!
+    def __init__(self):
+        self._xid = 100
+    
     async def connect(self, host, port):
         print(f"Opening RPC client connection to {host}:{port}")
         self._reader, self._writer = await asyncio.open_connection(
                 host, port)
-        self._xid = 100
     
+    async def connect_unix(self, path):
+        print(f"Opening UNIX RPC connection to {path}")
+        self._reader, self._writer = await asyncio.open_unix_connection(
+            path=path)
+        
     async def close(self):
         self._writer.close()
         if(sys.hexversion > 0x03070000):
@@ -76,9 +83,7 @@ class rpc_client():
         b_call = p.get_buffer()
         frag_len = len(b_call) + len(data)
         b_len = struct.pack(">I",0x80000000 | frag_len)
-        self._writer.write(b_len)
-        self._writer.write(b_call)
-        self._writer.write(data)
+        self._writer.write(b_len + b_call + data)
         await self._writer.drain()
         
         frag_hdr_data = await self._reader.read(4)

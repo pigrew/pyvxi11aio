@@ -47,15 +47,20 @@ import rpc_client
 async def main():
     cl = rpc_client.rpc_client()
     
-    await cl.connect("127.0.0.1",portmap_const.PMAP_PORT)
-    mapping = portmap_type.mapping(prog=0x0607AF, vers=1, prot=portmap_const.IPPROTO_TCP, port=0)
+    #await cl.connect("127.0.0.1",portmap_const.PMAP_PORT)
+    await cl.connect_unix(path="/var/run/rpcbind.sock")
+    prog=9876
+    ver=1
+    mapping = portmap_type.mapping(prog=prog, vers=ver, prot=portmap_const.IPPROTO_TCP, port=5000)
     p = PORTMAPPacker()
     p.pack_mapping(mapping)
     rsp, _ = await cl.call( portmap_const.PMAP_PROG, vers=portmap_const.PMAP_VERS,
                   proc=portmap_const.PMAPPROC_GETPORT, data = p.get_buffer())
+    print(rsp)
     rsp, _ = await cl.call( portmap_const.PMAP_PROG, vers=portmap_const.PMAP_VERS,
-                  proc=portmap_const.PMAPPROC_GETPORT, data = p.get_buffer())
+                  proc=portmap_const.PMAPPROC_SET, data = p.get_buffer())
     print(rsp)
     await cl.close()
 
 asyncio.run(main())
+
