@@ -38,6 +38,7 @@
 # 2. Attempt to connect to 127.0.0.1:111
 # 3. Attempt to create our own static portmapper
 
+import sys
 import asyncio
 import vxi11_srv
 import adapter_time
@@ -48,6 +49,12 @@ import xdr.vxi11_const as vxi11_const
 import xdr.portmap_const as portmap_const
 import rpc_client
 import portmap_client
+def create_task(x):
+    if(sys.hexversion >= 0x03070000):
+        return asyncio.create_task(x)
+    else:
+        return x
+
 async def main():
     
     vxi11_core_srv = vxi11_srv.vxi11_core_srv(port=0,adapters=[adapter_time.adapter()])
@@ -67,8 +74,8 @@ async def main():
         except ConnectionRefusedError:
             print("Could not connect to portmapper.... attempting to start our own")
             cl = None
-    tasks = [asyncio.create_task(vxi11_core_srv.main()),
-             asyncio.create_task(vxi11_async_srv.main()),
+    tasks = [create_task(vxi11_core_srv.main()),
+             create_task(vxi11_async_srv.main()),
              ]   
     if (cl is not None):
         print("Requesting RPC mapping")
@@ -85,13 +92,18 @@ async def main():
                         portmap_const.IPPROTO_TCP)] = vxi11_async_srv.actual_port
         
         pm_srv = portmap_srv.portmap_srv(mapper=mapper,port=111)
-        pm_task = asyncio.create_task(pm_srv.main())
+        pm_task = create_task(pm_srv.main())
         tasks = tasks + [pm_task]
-
+    
     await asyncio.gather(*tasks, return_exceptions=True)
     
 if  __name__ == "__main__":
+    if(sys.hexversion >= 0x03070000):
+        asyncio.run(main())
+    else:
+        loop = asyncio.get_event_loop()
+        # Blocking call which returns when the hello_world() coroutine is done
+        loop.run_until_complete(main())
+        loop.close()
     
-    #pm_srv.start()
-    asyncio.run(main())
     
