@@ -43,6 +43,15 @@ import xdr.portmap_const as portmap_const
 from xdr.portmap_pack import PORTMAPPacker, PORTMAPUnpacker
 import rpc_client
 
+async def map(client, prog, vers, port):
+    mapping = portmap_type.mapping(prog=prog, vers=vers, prot=portmap_const.IPPROTO_TCP, port=port)
+    p = PORTMAPPacker()
+    p.pack_mapping(mapping)
+    rsp, _ = await client.call( portmap_const.PMAP_PROG, vers=portmap_const.PMAP_VERS,
+                  proc=portmap_const.PMAPPROC_SET, data = p.get_buffer())
+    if(rsp == 0):
+        raise Exception(f"Request to map port {port} for prog {prog}.{vers} failed.")
+
 
 async def main():
     cl = rpc_client.rpc_client()
@@ -61,6 +70,7 @@ async def main():
                   proc=portmap_const.PMAPPROC_SET, data = p.get_buffer())
     print(rsp)
     await cl.close()
-
-asyncio.run(main())
+    
+if  __name__ == "__main__":
+    asyncio.run(main())
 

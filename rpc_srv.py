@@ -108,6 +108,20 @@ class rpc_srv(ABC):
                         )
                     )
             )
+    def pack_unsupported_data_msg(xid,data):
+        reply = rpc_type.rpc_msg(
+            xid=xid,
+            body=rpc_type.rpc_msg_body(
+                    mtype=rpc_const.REPLY,
+                    rbody=rpc_type.reply_body(
+                        stat=rpc_const.PROC_UNAVAIL,
+                        areply=rpc_type.rejected_reply(
+                                verf=rpc_type.opaque_auth(flavor=rpc_const.AUTH_NONE,body=b''),
+                                reply_data=rpc_type.rpc_reply_data(stat=rpc_const.SUCCESS,results=b'')
+                                )
+                        )
+                    )
+            )
         
         rpc_p = RPCPacker()
         rpc_p.pack_rpc_msg(reply)
