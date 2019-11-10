@@ -31,7 +31,7 @@
 
 
 # Connect to TCPIP0::127.0.0.1::inst0::INSTR
-
+import sys
 import asyncio
 import vxi11_srv
 import adapter_time
@@ -40,6 +40,12 @@ import portmap_srv
 import xdr.vxi11_const as vxi11_const
 import xdr.portmap_const as portmap_const
 
+
+def create_task(x):
+    if(sys.hexversion >= 0x03070000):
+        return asyncio.create_task(x)
+    else:
+        return x
 
 async def main():
     
@@ -57,16 +63,23 @@ async def main():
                     portmap_const.IPPROTO_TCP)] = vxi11_async_srv.actual_port
     
     pm_srv = portmap_srv.portmap_srv(mapper=mapper,port=111)
-    pm_task = asyncio.create_task(pm_srv.main())
+    pm_task = create_task(pm_srv.main())
     
     tasks = [pm_task,
-             asyncio.create_task(vxi11_core_srv.main()),
-             asyncio.create_task(vxi11_async_srv.main()),
+             create_task(vxi11_core_srv.main()),
+             create_task(vxi11_async_srv.main()),
              ]
+    print(f"Starting subtasks")
     await asyncio.gather(*tasks, return_exceptions=True)
+    print("subtasks done")
     
 if  __name__ == "__main__":
+    if(sys.hexversion >= 0x03070000):
+        asyncio.run(main())
+    else:
+        loop = asyncio.get_event_loop()
+        # Blocking call which returns when the hello_world() coroutine is done
+        loop.run_until_complete(main())
+        loop.close()
     
-    #pm_srv.start()
-    asyncio.run(main())
     
