@@ -25,7 +25,7 @@ struct Create_LinkParms {
 struct Create_LinkResp { 
     Device_ErrorCode  error; 
     Device_Link       lid; 
-    opaque    abortPort[2];   /* for the abort RPC, was "unsigned short" */ 
+    unsigned int      abortPort;   /* for the abort RPC, was "unsigned short" */ 
     unsigned int      maxRecvSize; /* specifies max data size in bytes 
                                       device will accept on a write */ 
 }; 
@@ -65,7 +65,7 @@ struct Device_GenericParms {
 }; 
 struct Device_RemoteFunc { 
     unsigned int     hostAddr;      /* Host servicing Interrupt */ 
-    opaque           hostPort[2];      /* valid port # on client, was "unsigned short" */ 
+    unsigned int     hostPort;      /* valid port # on client, was "unsigned short" */ 
     unsigned int     progNum;       /* DEVICE_INTR */ 
     unsigned int     progVers;      /* DEVICE_INTR_VERSION */ 
     Device_AddrFamily   progFamily; /* DEVICE_UDP | DEVICE_TCP */ 

@@ -53,9 +53,11 @@ from vxi11_srv import vxi11_deviceFlags, vxi11_errorCodes
 
 class vxi11_link:
     
-    def __init__(self, link_id: int, adapter: 'vxi11_adapter'):
+    def __init__(self, link_id: int, adapter: 'vxi11_adapter', conn):
         self.adapter = adapter
         self.link_id = link_id
+        self.conn = conn
+        self.srq_handle = None # set to a bytes[40] when SRQ are enabled
         
     async def read(self, requestSize: int, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, termChar: int):
         """Return (errorCode, vxi11_readReason, data: bytes)
@@ -205,7 +207,7 @@ class vxi11_adapter:
         self.adapter_excl_lock = asyncio.Lock()
         self.adapter_excl_lock_owner = None
     
-    async def create_link(self, clientId: int, lockDevice: bool, lock_timeout: int, device: bytes, link_id: int):
+    async def create_link(self, clientId: int, lockDevice: bool, lock_timeout: int, device: bytes, link_id: int, conn):
         """ Returns (errorcode,link)"""
         # Errorcode may be NO_ERROR, SYNTAX_ERROR, DEVICE_NOT_ACCESSIBLE,
         #    OUT_OF_RESOURCES, DEVICE_LOCKED_BY_ANOTHER_LINK, INVALID_ADDRESS

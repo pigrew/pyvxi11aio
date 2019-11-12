@@ -62,7 +62,7 @@ class rpc_client():
         self._writer = None
         self._reader = None
         
-    async def call(self, prognum, vers, proc, data: bytes):
+    async def call(self, prognum, vers, proc, data: bytes, read_reply = True):
         cbody = rpc_type.call_body(
                 rpcvers=2,
                 prog=prognum,
@@ -85,20 +85,22 @@ class rpc_client():
         b_len = struct.pack(">I",0x80000000 | frag_len)
         self._writer.write(b_len + b_call + data)
         await self._writer.drain()
-        
-        frag_hdr_data = await self._reader.read(4)
-        if(len(frag_hdr_data) != 4):
-            raise Exception("client closed connection???")
-        frag_len = struct.unpack(">I",frag_hdr_data)[0]
-        if((frag_len & 0x80000000) == 0):
-            raise Exception("Partial fragments not implemented")
-        frag_len = frag_len & 0x7FFFFFFF
-        data = await self._reader.read(frag_len)
-        if(len(data) != frag_len):
-            raise Exception("Data not as expected")
-        msg_up = RPCUnpacker(data)
-        msg = msg_up.unpack_rpc_msg()
-        #reply_data = await conn.handleMsg(msg,buf=data,buf_ix=msg_up.get_position())
-        
-        return (data[msg_up.get_position():], msg)
+        if(read_reply):
+            frag_hdr_data = await self._reader.read(4)
+            if(len(frag_hdr_data) != 4):
+                raise Exception("client closed connection???")
+            frag_len = struct.unpack(">I",frag_hdr_data)[0]
+            if((frag_len & 0x80000000) == 0):
+                raise Exception("Partial fragments not implemented")
+            frag_len = frag_len & 0x7FFFFFFF
+            data = await self._reader.read(frag_len)
+            if(len(data) != frag_len):
+                raise Exception("Data not as expected")
+            msg_up = RPCUnpacker(data)
+            msg = msg_up.unpack_rpc_msg()
+            #reply_data = await conn.handleMsg(msg,buf=data,buf_ix=msg_up.get_position())
+            
+            return (data[msg_up.get_position():], msg)
+        else:
+            return (None,None)
     

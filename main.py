@@ -94,7 +94,7 @@ async def main():
         pm_srv = portmap_srv.portmap_srv(mapper=mapper,port=111)
         pm_task = create_task(pm_srv.main())
         tasks = tasks + [pm_task]
-    
+    vxi11_core_srv.abort_port = vxi11_async_srv.actual_port
     await asyncio.gather(*tasks, return_exceptions=True)
     
 if  __name__ == "__main__":
