@@ -34,13 +34,14 @@
 
 import asyncio
 import enum
-import struct
 
-import rpc_srv
+from rpc_srv import rpc_conn,rpc_srv
 
 import xdr.vxi11_const as vxi11_const, xdr.vxi11_type as vxi11_type
 from xdr.vxi11_pack import VXI11Packer, VXI11Unpacker
+
 import rpc_client
+
 import xdr.rpc_const as rpc_const
 
 class vxi11_errorCodes(enum.IntEnum):
@@ -126,56 +127,45 @@ class vxi11_intr_executor():
         self._task = None
         
     
-class vxi11_core_conn(rpc_srv.rpc_conn):
+class vxi11_core_conn(rpc_conn):
     def __init__(self,srv):
         self.links = dict()
         self.srv = srv
         self._intr_exec = None
         super().__init__()
         
-    async def handle_create_link(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+            VXI11Unpacker,VXI11Unpacker.unpack_Create_LinkParms,
+            VXI11Packer,VXI11Packer.pack_Create_LinkResp)
+    async def handle_create_link(self,rpc_msg, arg):
         """ Create_LinkResp    create_link        (Create_LinkParms)      = 10; """
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Create_LinkParms()
-        print(f"create_link >>> {arg}")
         lid = self.srv.next_link_id
         self.srv.next_link_id = self.srv.next_link_id + 1
         (err,link) = await self.srv.adapters[0].create_link(clientId = arg.clientId, lockDevice = arg.lockDevice,
                              lock_timeout = arg.lock_timeout, device = arg.device, link_id = lid, conn = self)
-        
         self.links[lid] = link
         rsp = vxi11_type.Create_LinkResp(
                 error=err, lid=lid,
                 abortPort=self.srv.abort_port,maxRecvSize=1024) # min maxRecvSize is 1024 per spec
-        print(f"            <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Create_LinkResp(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
-    async def handle_device_write(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_WriteParms,
+        VXI11Packer,VXI11Packer.pack_Device_WriteResp)
+    async def handle_device_write(self, rpc_msg, arg):
         """Device_WriteResp   device_write       (Device_WriteParms)     = 11; """
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_WriteParms()
-        print(f"device_write >>> {arg} (flags={vxi11_deviceFlags(arg.flags)})")
         link = self.links[arg.lid]
         (err,size) = await link.write(io_timeout = arg.io_timeout,
             lock_timeout = arg.lock_timeout, flags = vxi11_deviceFlags(arg.flags), data = arg.data)
         
         rsp = vxi11_type.Device_WriteResp(error=err, size=size)
+        return rsp
         
-        print(f"device_write <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_WriteResp(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
-        
-    async def handle_device_read(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_ReadParms,
+        VXI11Packer,VXI11Packer.pack_Device_ReadResp)
+    async def handle_device_read(self, rpc_msg, arg):
         """Device_ReadResp    device_read        (Device_ReadParms)      = 12; """
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_ReadParms()
-        print(f"device_read >>> {arg} (flags={vxi11_errorCodes(arg.flags)})")
         link = self.links.get(arg.lid)
         if (link is not None):
             (err,reason,data) = await link.read(requestSize = arg.requestSize,
@@ -184,17 +174,13 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         else:
             (err,reason,data) = (vxi11_errorCodes.INVALID_LINK_IDENTIFIER,0,b'')
         rsp = vxi11_type.Device_ReadResp(error=err, reason=reason, data=data)
-        print(f"device_read <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_ReadResp(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
-        
-    async def handle_device_readstb(self,rpc_msg, buf, buf_ix):
+        return rsp
+    
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_GenericParms,
+        VXI11Packer,VXI11Packer.pack_Device_ReadStbResp)
+    async def handle_device_readstb(self,rpc_msg, arg):
         """Device_ReadStbResp device_readstb     (Device_GenericParms)   = 13;"""
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_GenericParms()
-        print(f"device_readstb >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
             (err,stb) = await link.read_stb(flags = vxi11_deviceFlags(arg.flags),lock_timeout = arg.lock_timeout,
@@ -202,17 +188,13 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         else:
             (err,stb) = (vxi11_errorCodes.INVALID_LINK_IDENTIFIER,0)
         rsp = vxi11_type.Device_ReadStbResp(error=err, stb=stb)#stb=struct.pack('>B',0x42))
-        print(f"device_readstb <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_ReadStbResp(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
-    async def handle_device_trigger(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_GenericParms,
+        VXI11Packer,VXI11Packer.pack_Device_Error)
+    async def handle_device_trigger(self,rpc_msg, arg):
         """Device_Error       device_trigger     (Device_GenericParms)   = 14; """
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_GenericParms()
-        print(f"device_trigger >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
             err = await link.trigger(flags = vxi11_deviceFlags(arg.flags),lock_timeout = arg.lock_timeout,
@@ -220,17 +202,13 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         else:
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         rsp = vxi11_type.Device_Error(error=err)
-        print(f"device_trigger <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_GenericParms,
+        VXI11Packer,VXI11Packer.pack_Device_Error)
     async def handle_device_clear(self,rpc_msg, buf, buf_ix):
         """Device_Error       device_clear       (Device_GenericParms)   = 15; """
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_GenericParms()
-        print(f"device_clear >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
             err = await link.clear(flags = vxi11_deviceFlags(arg.flags),lock_timeout = arg.lock_timeout,
@@ -239,17 +217,13 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         
         rsp = vxi11_type.Device_Error(error=err)
-        print(f"device_clear <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
-    async def handle_device_remote(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_GenericParms,
+        VXI11Packer,VXI11Packer.pack_Device_Error)
+    async def handle_device_remote(self, rpc_msg, arg):
         """Device_Error       device_remote      (Device_GenericParms)   = 16; """
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_GenericParms()
-        print(f"device_remote >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
             err = await link.clear(flags = vxi11_deviceFlags(arg.flags),lock_timeout = arg.lock_timeout,
@@ -258,17 +232,13 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         
         rsp = vxi11_type.Device_Error(error=err)
-        print(f"device_remote <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
-    async def handle_device_local(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_GenericParms,
+        VXI11Packer,VXI11Packer.pack_Device_Error)
+    async def handle_device_local(self, rpc_msg, arg):
         """Device_Error       device_local       (Device_GenericParms)   = 17;"""
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_GenericParms()
-        print(f"device_local >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
             err = await link.local(flags = vxi11_deviceFlags(arg.flags),lock_timeout = arg.lock_timeout,
@@ -277,17 +247,13 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         
         rsp = vxi11_type.Device_Error(error=err)
-        print(f"device_local <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
-    async def handle_device_lock(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_LockParms,
+        VXI11Packer,VXI11Packer.pack_Device_Error)
+    async def handle_device_lock(self, rpc_msg, arg):
         """Device_Error       device_lock        (Device_LockParms)      = 18;"""
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_LockParms()
-        print(f"device_lock >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
             err = await link.device_lock(flags=vxi11_deviceFlags(arg.flags), lock_timeout=arg.lock_timeout)
@@ -295,37 +261,30 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         
         rsp = vxi11_type.Device_Error(error=err)
-        print(f"device_lock <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
-    async def handle_device_unlock(self,rpc_msg, buf, buf_ix):
+        return rsp
+    
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_Link,
+        VXI11Packer,VXI11Packer.pack_Device_Error)
+    async def handle_device_unlock(self,rpc_msg, arg):
         """Device_Error       device_unlock      (Device_Link)           = 19;"""
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_Link()
-        print(f"device_unlock >>> {arg}")
         link = self.links.get(arg)
         if (link is not None):
             err = await link.device_unlock()
         else:
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         rsp = vxi11_type.Device_Error( error=err)
-        print(f"device_unlock <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
     def send_srq(self,handle):
         if(self._intr_exec is not None):
              self._intr_exec.send_irq(handle)
     
-    async def handle_device_enable_srq(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_EnableSrqParms,
+        VXI11Packer,VXI11Packer.pack_Device_Error)
+    async def handle_device_enable_srq(self,rpc_msg, arg):
         """Device_Error       device_enable_srq  (Device_EnableSrqParms) = 20;"""
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_EnableSrqParms()
-        print(f"device_enable_srq >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
             if(arg.enable):
@@ -336,17 +295,13 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         else:
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         rsp = vxi11_type.Device_Error(error=err)
-        print(f"device_enable_srq <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
-    async def handle_device_docmd(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_DocmdParms,
+        VXI11Packer,VXI11Packer.pack_Device_DocmdResp)
+    async def handle_device_docmd(self,rpc_msg, arg):
         """Device_DocmdResp   device_docmd       (Device_DocmdParms)     = 22;"""
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_DocmdParms()
-        print(f"device_docmd >>> {arg}")
         link = self.links.get(arg.lid)
         if (link is not None):
             (err,data_out) = await link.docmd(flags = vxi11_deviceFlags(arg.flags),
@@ -355,18 +310,14 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
                 data_in = arg.data_in)
         else:
             (err,data_out) = (vxi11_errorCodes.INVALID_LINK_IDENTIFIER,b'')
-        rsp = vxi11_type.Device_DocmdResp(error=err, data_out=data_out)#stb=struct.pack('>B',0x42))
-        print(f"device_docmd <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_DocmdResp(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        rsp = vxi11_type.Device_DocmdResp(error=err, data_out=data_out)
+        return rsp
     
-    async def handle_destroy_link(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_Link,
+        VXI11Packer,VXI11Packer.pack_Device_Error)
+    async def handle_destroy_link(self,rpc_msg, arg):
         """Device_Error       destroy_link       (Device_Link)           = 23; """
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_Link()
-        print(f"destroy_link >>> {arg}")
         link = self.links.get(arg)
         if (link is not None):
             # Remove link prior to destroying it, to ensure another connection
@@ -376,17 +327,13 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         else:
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         rsp = vxi11_type.Device_Error( error=err)
-        print(f"destroy_link <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
-    async def handle_create_intr_chan(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_RemoteFunc,
+        VXI11Packer,VXI11Packer.pack_Device_Error)
+    async def handle_create_intr_chan(self, rpc_msg, arg):
         """Device_Error       create_intr_chan   (Device_RemoteFunc)     = 25;"""
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_RemoteFunc()
-        print(f"create_intr_chan >>> {arg}")
         if((arg.progNum != vxi11_const.DEVICE_INTR) or (arg.progVers != vxi11_const.DEVICE_INTR_VERSION)):
             err = vxi11_errorCodes.OPERATION_NOT_SUPPORTED
         elif ((arg.progFamily != vxi11_const.DEVICE_TCP)):
@@ -401,12 +348,12 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
             err = vxi11_errorCodes.NO_ERROR
         
         rsp = vxi11_type.Device_Error(error=err)
-        print(f"create_intr_chan <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
-    async def handle_destroy_intr_chan(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        None,None,
+        VXI11Packer,VXI11Packer.pack_Device_Error)
+    async def handle_destroy_intr_chan(self,rpc_msg, arg):
         """Device_Error       destroy_intr_chan  (void)                  = 26;"""
         print(f"destroy_intr_chan >>> (void)")
         if(self._intr_exec is None):
@@ -417,10 +364,7 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
             err = vxi11_errorCodes.NO_ERROR
         
         rsp = vxi11_type.Device_Error(error=err)
-        print(f"destroy_intr_chan <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
     # (prog, vers, proc) => func(self,rpc_msg, buf, buf_ix)
     
@@ -441,7 +385,7 @@ class vxi11_core_conn(rpc_srv.rpc_conn):
         (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.create_intr_chan): handle_create_intr_chan, # 25
         (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.destroy_intr_chan): handle_destroy_intr_chan, # 26
     }
-class vxi11_abort_conn(rpc_srv.rpc_conn):
+class vxi11_abort_conn(rpc_conn):
     def __init__(self,srv):
         print("Opening abort connection")
         self.links = dict()
@@ -464,13 +408,13 @@ class vxi11_abort_conn(rpc_srv.rpc_conn):
         print(f"device_abort <<< {rsp}")
         p = VXI11Packer()
         p.pack_Device_Error(rsp)
-        return rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
     
     call_dispatch_table = {
             (vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION, vxi11_const.device_abort): handle_device_abort
             }
 
-class vxi11_core_srv(rpc_srv.rpc_srv):
+class vxi11_core_srv(rpc_srv):
     """ 
     mapping member is a map from (prog,vers,prot) to uint
     """
@@ -493,7 +437,7 @@ class vxi11_core_srv(rpc_srv.rpc_srv):
         intrClientTask  = self.clientMain()
         await asyncio.gather(rpcTask,intrClientTask)
 
-class vxi11_async_srv(rpc_srv.rpc_srv):
+class vxi11_async_srv(rpc_srv):
     """ 
     mapping member is a map from (prog,vers,prot) to uint
     """

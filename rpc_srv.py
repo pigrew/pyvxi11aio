@@ -47,6 +47,26 @@ class rpc_conn(ABC):
     # (prog, vers, proc) => bytes handler_func(self,rpc_msg, buf, buf_ix)
     call_dispatch_table = None
     
+    def callHandler(unpacker,unpack_func,packer,pack_func):
+        """Decorator for RPC call handlers"""
+        def decorator(func):
+            async def wrapper(self, rpc_msg, buf, buf_ix):
+                if(unpacker is not None):
+                    arg_up = unpacker(buf)
+                    arg_up.set_position(buf_ix)
+                    arg = unpack_func(arg_up)
+                    print(f"{func.__name__} >>> {arg}")
+                else:
+                    arg = None
+                    print(f"{func.__name__} >>> (void)")
+                rsp = await func(self, rpc_msg, arg)
+                print(f"{func.__name__} <<< {arg}")
+                p = packer()
+                pack_func(p,rsp)
+                return rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+            return wrapper
+        return decorator
+    
     async def handleMsg(self, rpc_msg: rpc_type.rpc_msg, buf, buf_ix: int):
         if(rpc_msg.body.mtype != rpc_const.CALL):
             return None
