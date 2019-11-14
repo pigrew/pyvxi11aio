@@ -155,9 +155,11 @@ class vxi11_core_conn(rpc_conn):
     async def handle_device_write(self, rpc_msg, arg):
         """Device_WriteResp   device_write       (Device_WriteParms)     = 11; """
         link = self.links[arg.lid]
-        (err,size) = await link.write(io_timeout = arg.io_timeout,
-            lock_timeout = arg.lock_timeout, flags = vxi11_deviceFlags(arg.flags), data = arg.data)
-        
+        if (link is not None):
+            (err,size) = await link.write(io_timeout = arg.io_timeout,
+                lock_timeout = arg.lock_timeout, flags = vxi11_deviceFlags(arg.flags), data = arg.data)
+        else:
+            (err, size) = (vxi11_errorCodes.INVALID_LINK_IDENTIFIER,0)
         rsp = vxi11_type.Device_WriteResp(error=err, size=size)
         return rsp
         
@@ -385,6 +387,7 @@ class vxi11_core_conn(rpc_conn):
         (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.create_intr_chan): handle_create_intr_chan, # 25
         (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.destroy_intr_chan): handle_destroy_intr_chan, # 26
     }
+
 class vxi11_abort_conn(rpc_conn):
     def __init__(self,srv):
         print("Opening abort connection")
@@ -392,12 +395,11 @@ class vxi11_abort_conn(rpc_conn):
         self.srv = srv
         super().__init__()
         
-    async def handle_device_abort(self,rpc_msg, buf, buf_ix):
+    @rpc_conn.callHandler(
+        VXI11Unpacker,VXI11Unpacker.unpack_Device_Link,
+        VXI11Packer,VXI11Packer.pack_Device_Error)
+    async def handle_device_abort(self,rpc_msg, arg):
         """Device_Error device_abort (Device_Link) = 1;"""
-        arg_up = VXI11Unpacker(buf)
-        arg_up.set_position(buf_ix)
-        arg = arg_up.unpack_Device_Link()
-        print(f"device_abort >>> {arg}")
         link = self.links.get(arg)
         if (link is not None):
             err = vxi11_errorCodes.NO_ERROR # We don't really do it, but this is kinda following the spec
@@ -405,10 +407,7 @@ class vxi11_abort_conn(rpc_conn):
             err = vxi11_errorCodes.INVALID_LINK_IDENTIFIER
         
         rsp = vxi11_type.Device_Error(error=err)
-        print(f"device_abort <<< {rsp}")
-        p = VXI11Packer()
-        p.pack_Device_Error(rsp)
-        return rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
+        return rsp
     
     call_dispatch_table = {
             (vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION, vxi11_const.device_abort): handle_device_abort
@@ -427,15 +426,6 @@ class vxi11_core_srv(rpc_srv):
     
     def create_conn(self):
         return vxi11_core_conn(self)
-    
-    async def clientMain(self):
-        
-        pass
-    
-    async def main(self):
-        rpcTask = super().main()
-        intrClientTask  = self.clientMain()
-        await asyncio.gather(rpcTask,intrClientTask)
 
 class vxi11_async_srv(rpc_srv):
     """ 
@@ -443,7 +433,6 @@ class vxi11_async_srv(rpc_srv):
     """
     def __init__(self,port,adapters):
         self.adapters = adapters
-        self.next_link_id = 0
         super().__init__(port)
     
     def create_conn(self):

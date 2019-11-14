@@ -48,7 +48,8 @@ class rpc_conn(ABC):
     call_dispatch_table = None
     
     def callHandler(unpacker,unpack_func,packer,pack_func):
-        """Decorator for RPC call handlers"""
+        """Decorator for RPC call handlers. This automates the packing and
+        unpacking of handelers."""
         def decorator(func):
             async def wrapper(self, rpc_msg, buf, buf_ix):
                 if(unpacker is not None):
