@@ -30,7 +30,10 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 
-# This implements a "time-server" adapter
+# This implements a proxy to a VISA USBTMC device
+
+# The VISA session runs in a separate thread, using an event queue in order to
+# serialize requests.
 
 import asyncio
 import enum
@@ -43,10 +46,10 @@ from vxi11_adapter import vxi11_link, vxi11_adapter
 
 
 class link(vxi11_link):
-    def __init__(self, link_id: int, device: bytes, adapter: 'adapter', conn):
+    def __init__(self, link_id: int, device: bytes, adapter: 'adapter'):
         self.outBuf = None
         self.device_name = device
-        super().__init__(link_id=link_id, adapter=adapter, conn=conn)
+        super().__init__(link_id=link_id, adapter=adapter)
         
     async def write(self, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, data: bytes):
         """Return (errorCode, size)
@@ -87,23 +90,13 @@ class link(vxi11_link):
         """
         return (vxi11_errorCodes.NO_ERROR,0x23)
     
-    def timeout_cb(self):
-        print("link TIMEOUT! (and potentially SRQ)")
-        self.th = asyncio.get_running_loop().call_later(delay=6, callback=self.timeout_cb)
-        if(self.srq_handle is not None):
-            self.conn.send_srq(self.srq_handle)
-        
 class adapter(vxi11_adapter):
     def __init__(self):
         super().__init__()
         
-    async def create_link(self, clientId: int, lockDevice: bool, lock_timeout: int, device: bytes, link_id: int, conn):
+    async def create_link(self, clientId: int, lockDevice: bool, lock_timeout: int, device: bytes, link_id: int):
         """ Returns (errorcode,link)"""
         # Errorcode may be NO_ERROR, SYNTAX_ERROR, DEVICE_NOT_ACCESSIBLE,
         #    OUT_OF_RESOURCES, DEVICE_LOCKED_BY_ANOTHER_LINK, INVALID_ADDRESS
-        l = link(link_id=link_id,device=device,adapter=self, conn=conn)
-        l.th = asyncio.get_running_loop().call_later(delay=6, callback=l.timeout_cb)
-        
-        
-        return (vxi11_errorCodes.NO_ERROR,l)
+        return (vxi11_errorCodes.NO_ERROR,link(link_id=link_id,device=device,adapter=self))
     

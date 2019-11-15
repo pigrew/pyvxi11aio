@@ -40,15 +40,15 @@
 
 import sys
 import asyncio
-import vxi11_srv
-import adapter_time
-import portmap_srv
 import os
 
-import xdr.vxi11_const as vxi11_const
-import xdr.portmap_const as portmap_const
-import rpc_client
-import portmap_client
+
+
+from vxi11aio import vxi11_srv, adapter_time, portmap_srv, rpc_client, portmap_client
+
+from vxi11aio.xdr import vxi11_const, portmap_const
+
+
 def create_task(x):
     if(sys.hexversion >= 0x03070000):
         return asyncio.create_task(x)

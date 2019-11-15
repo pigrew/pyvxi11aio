@@ -49,7 +49,7 @@
 # IO lock is global to the adapter.
 
 import asyncio
-from vxi11_srv import vxi11_deviceFlags, vxi11_errorCodes
+from .vxi11_srv import vxi11_deviceFlags, vxi11_errorCodes
 
 class vxi11_link:
     

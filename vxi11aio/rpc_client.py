@@ -37,8 +37,8 @@ import asyncio
 import struct
 from abc import ABC, abstractmethod
 
-import xdr.rpc_const as rpc_const, xdr.rpc_type as rpc_type
-from xdr.rpc_pack import RPCPacker, RPCUnpacker
+import vxi11aio.xdr.rpc_const as rpc_const, vxi11aio.xdr.rpc_type as rpc_type
+from .xdr.rpc_pack import RPCPacker, RPCUnpacker
 
 class rpc_client():
     # Don't connect in the constructor, since it should be asynchronous!

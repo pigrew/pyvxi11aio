@@ -32,13 +32,14 @@
 
 # Connect to TCPIP0::127.0.0.1::INSTR
 
-import sys
-import asyncio
-import struct
 from abc import ABC, abstractmethod
+import asyncio
+import functools
+import struct
+import sys
 
-import xdr.rpc_const as rpc_const, xdr.rpc_type as rpc_type
-from xdr.rpc_pack import RPCPacker, RPCUnpacker
+from .xdr import rpc_const, rpc_type
+from .xdr.rpc_pack import RPCPacker, RPCUnpacker
 
 class rpc_conn(ABC):
     def __init__(self):
@@ -51,6 +52,7 @@ class rpc_conn(ABC):
         """Decorator for RPC call handlers. This automates the packing and
         unpacking of handelers."""
         def decorator(func):
+            @functools.wraps(func)
             async def wrapper(self, rpc_msg, buf, buf_ix):
                 if(unpacker is not None):
                     arg_up = unpacker(buf)

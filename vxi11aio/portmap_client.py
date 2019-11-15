@@ -37,11 +37,9 @@ import asyncio
 import struct
 from abc import ABC, abstractmethod
 
-import xdr.rpc_const as rpc_const
-import xdr.portmap_type as portmap_type
-import xdr.portmap_const as portmap_const
-from xdr.portmap_pack import PORTMAPPacker, PORTMAPUnpacker
-import rpc_client
+from .xdr import rpc_const, portmap_type, portmap_const
+from .xdr.portmap_pack import PORTMAPPacker, PORTMAPUnpacker
+from . import rpc_client
 
 async def map(client, prog, vers, port):
     mapping = portmap_type.mapping(prog=prog, vers=vers, prot=portmap_const.IPPROTO_TCP, port=port)

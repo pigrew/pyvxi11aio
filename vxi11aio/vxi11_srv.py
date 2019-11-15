@@ -35,14 +35,14 @@
 import asyncio
 import enum
 
-from rpc_srv import rpc_conn,rpc_srv
+from .rpc_srv import rpc_conn, rpc_srv
 
-import xdr.vxi11_const as vxi11_const, xdr.vxi11_type as vxi11_type
-from xdr.vxi11_pack import VXI11Packer, VXI11Unpacker
+from .xdr import vxi11_const, vxi11_type
+from .xdr.vxi11_pack import VXI11Packer, VXI11Unpacker
 
-import rpc_client
+from .rpc_client import rpc_client
 
-import xdr.rpc_const as rpc_const
+from .xdr import rpc_const
 
 class vxi11_errorCodes(enum.IntEnum):
     NO_ERROR = 0
@@ -71,7 +71,7 @@ class vxi11_readReason(enum.IntFlag):
     CHR      = 0x02
     END      = 0x84
 
-class vxi11_intr_client(rpc_client.rpc_client):
+class vxi11_intr_client(rpc_client):
     async def device_intr_srq(self, handle: bytes):
         """void device_intr_srq (Device_SrqParms) = 30;"""
         args = vxi11_type.Device_SrqParms(handle=handle)

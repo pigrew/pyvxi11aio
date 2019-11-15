@@ -43,15 +43,15 @@ import asyncio
 import struct
 #from pprint import pprint
 
-import xdr.portmap_const as portmap_const
+from .xdr import portmap_const
 #import portmap_type
-from xdr.portmap_pack import PORTMAPPacker, PORTMAPUnpacker
+from .xdr.portmap_pack import PORTMAPPacker, PORTMAPUnpacker
 
-import xdr.vxi11_const
+from .xdr import vxi11_const
 
-import rpc_srv
-import vxi11_srv
-import adapter_time
+from . import rpc_srv
+from . import vxi11_srv
+from . import adapter_time
 
 class portmapper():
     def __init__(self):
