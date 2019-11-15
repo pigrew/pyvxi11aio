@@ -74,11 +74,16 @@ class rpc_conn(ABC):
         if(rpc_msg.body.mtype != rpc_const.CALL):
             return None
         cbody = rpc_msg.body.cbody
-        handler = self.call_dispatch_table.get((cbody.prog,cbody.vers,cbody.proc))
+        progHandlers = self.call_dispatch_table.get((cbody.prog,cbody.vers))
+        if(progHandlers is None):
+            print(f"RPC(prog={cbody.prog,cbody.vers}) not implemented")
+            return rpc_srv.pack_reply_msg_unsupported(rpc_msg.xid,stat=rpc_const.PROG_UNAVAIL)
+        
+        handler = progHandlers.get(cbody.proc)
         #print(f"dispatcher = {handler}")
         if(handler is None):
             print(f"RPC(proc={cbody.proc}) not implemented")
-            return rpc_srv.pack_reply_msg_unsupported(rpc_msg.xid)
+            return rpc_srv.pack_reply_msg_unsupported(rpc_msg.xid,stat=rpc_const.PROC_UNAVAIL)
         return await handler(self,rpc_msg, buf, buf_ix)
 
 class rpc_srv(ABC):
@@ -139,7 +144,8 @@ class rpc_srv(ABC):
         #print(f"rep_data={reply}")
         return rpc_p.get_buffer()             
         
-    def pack_reply_msg_unsupported(xid):
+    def pack_reply_msg_unsupported(xid,stat):
+        """stat may be [rpc_const.PROG_UNAVAIL,rpc_const.PROC_UNAVAIL]"""
         reply = rpc_type.rpc_msg(
             xid=xid,
             body=rpc_type.rpc_msg_body(
@@ -148,7 +154,7 @@ class rpc_srv(ABC):
                         stat=rpc_const.MSG_ACCEPTED,
                         areply=rpc_type.accepted_reply(
                                 verf=rpc_type.opaque_auth(flavor=rpc_const.AUTH_NONE,body=b''),
-                                reply_data=rpc_type.rpc_reply_data(stat=rpc_const.PROG_UNAVAIL)
+                                reply_data=rpc_type.rpc_reply_data(stat=stat)
                                 )
                         )
                     )

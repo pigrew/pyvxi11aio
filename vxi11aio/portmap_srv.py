@@ -77,7 +77,9 @@ class portmap_conn(rpc_srv.rpc_conn):
     # (prog, vers, proc) => func(self,rpc_msg, buf, buf_ix)
 
     call_dispatch_table = {
-            (portmap_const.PMAP_PROG,portmap_const.PMAP_VERS, portmap_const.PMAPPROC_GETPORT): handle_getPort
+            (portmap_const.PMAP_PROG,portmap_const.PMAP_VERS): {
+                    portmap_const.PMAPPROC_GETPORT: handle_getPort
+            }
     }
     
 class portmap_srv(rpc_srv.rpc_srv):

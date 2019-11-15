@@ -371,21 +371,23 @@ class vxi11_core_conn(rpc_conn):
     # (prog, vers, proc) => func(self,rpc_msg, buf, buf_ix)
     
     call_dispatch_table = {
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.create_link): handle_create_link, # 10
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_write): handle_device_write, # 11
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_read): handle_device_read, # 12
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_readstb): handle_device_readstb, # 13
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_trigger): handle_device_trigger, # 14
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_clear): handle_device_clear, # 15
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_remote): handle_device_remote, # 16
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_local): handle_device_local, # 17
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_lock): handle_device_lock, # 18
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_unlock): handle_device_unlock, # 19
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_enable_srq): handle_device_enable_srq, # 20
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.device_docmd): handle_device_docmd, # 22
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.destroy_link): handle_destroy_link, # 23
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.create_intr_chan): handle_create_intr_chan, # 25
-        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION, vxi11_const.destroy_intr_chan): handle_destroy_intr_chan, # 26
+        (vxi11_const.DEVICE_CORE,vxi11_const.DEVICE_CORE_VERSION): {
+            vxi11_const.create_link: handle_create_link, # 10
+            vxi11_const.device_write: handle_device_write, # 11
+            vxi11_const.device_read: handle_device_read, # 12
+            vxi11_const.device_readstb: handle_device_readstb, # 13
+            vxi11_const.device_trigger: handle_device_trigger, # 14
+            vxi11_const.device_clear: handle_device_clear, # 15
+            vxi11_const.device_remote: handle_device_remote, # 16
+            vxi11_const.device_local: handle_device_local, # 17
+            vxi11_const.device_lock: handle_device_lock, # 18
+            vxi11_const.device_unlock: handle_device_unlock, # 19
+            vxi11_const.device_enable_srq: handle_device_enable_srq, # 20
+            vxi11_const.device_docmd: handle_device_docmd, # 22
+            vxi11_const.destroy_link: handle_destroy_link, # 23
+            vxi11_const.create_intr_chan: handle_create_intr_chan, # 25
+            vxi11_const.destroy_intr_chan: handle_destroy_intr_chan, # 26
+        }
     }
 
 class vxi11_abort_conn(rpc_conn):
