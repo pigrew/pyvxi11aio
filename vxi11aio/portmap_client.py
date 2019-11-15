@@ -52,6 +52,18 @@ async def map(client, prog, vers, port):
     if(rsp == 0):
         raise Exception(f"Request to map port {port} for prog {prog}.{vers} failed.")
     print("Mapping done?")
+    
+async def getport(client, prog, vers):
+    mapping = portmap_type.mapping(prog=prog, vers=vers, prot=portmap_const.IPPROTO_TCP, port=0)
+    p = PORTMAPPacker()
+    p.pack_mapping(mapping)
+    rsp, msg = await client.call( portmap_const.PMAP_PROG, vers=portmap_const.PMAP_VERS,
+                  proc=portmap_const.PMAPPROC_GETPORT, data = p.get_buffer())
+    if((msg.body.rbody.stat != rpc_const.MSG_ACCEPTED) or (msg.body.rbody.areply.reply_data.stat != rpc_const.SUCCESS)):
+        raise Exception(f"Request to RPC portmapper to get port for prog {prog}.{vers} not supported: {msg}.")
+    rsp = struct.unpack(">I",rsp)[0]
+    print(f"rsp = {rsp}")
+    return rsp
 
 async def main():
     cl = rpc_client.rpc_client()

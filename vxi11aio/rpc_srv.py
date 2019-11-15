@@ -169,7 +169,12 @@ class rpc_srv(ABC):
             await self.open()
         async with self._server:
             await self._server.serve_forever()
-        
+            
+    async def close(self):
+        print("Closing server")
+        self._server.close()
+        await self._server.wait_closed()
+        self._server = None
     #def start(self):
     #    asyncio.run(self.main(), debug=True)
         
