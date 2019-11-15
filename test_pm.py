@@ -31,12 +31,31 @@
 
 import unittest
 import asyncio
+import struct
 
 from vxi11aio import portmap_srv, rpc_client, portmap_client
 
-from vxi11aio.xdr import portmap_const, rpc_const
+from vxi11aio.xdr import portmap_const, rpc_const, portmap_pack
+from vxi11aio import rpc_srv
 
 class TestPM_srv(unittest.TestCase):
+    
+    async def mock_handle_setport(self,rpc_msg, buf, buf_ix):
+        arg_up = portmap_pack.PORTMAPUnpacker(buf)
+        arg_up.set_position(buf_ix)
+        arg = arg_up.unpack_mapping()
+        print(f"mapping = {arg}")
+        #port = self.mapper.mapping.get((arg.prog,arg.vers,arg.prot))
+        if(arg.port == 999):
+            # Special case of mapping failure
+            data = struct.pack(">I",0) # 1 for success
+            data = rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,data)
+            return data
+        self.mapper.mapping[(arg.prog,arg.vers,arg.prot)] = arg.port
+        data = struct.pack(">I",1) # 1 for success
+        data = rpc_srv.rpc_srv.pack_success_data_msg(rpc_msg.xid,data)
+        return data
+    
     @classmethod
     def setUpClass(self):
         self.loop = asyncio.get_event_loop()
@@ -87,6 +106,21 @@ class TestPM_srv(unittest.TestCase):
         rsp, msg = self.loop.run_until_complete(cl.call(portmap_const.PMAP_PROG,portmap_const.PMAP_VERS,12345,b''))
         print(f"{rsp},{msg}")
         self.assertEqual(msg.body.rbody.areply.reply_data.stat,rpc_const.PROC_UNAVAIL)
+        self.loop.run_until_complete(cl.close())
+        
+    def test_setport(self):
+        portmap_srv.portmap_conn.call_dispatch_table[(portmap_const.PMAP_PROG,portmap_const.PMAP_VERS)][portmap_const.PMAPPROC_SET] = TestPM_srv.mock_handle_setport
+        
+        cl = rpc_client.rpc_client()
+        self.loop.run_until_complete(cl.connect(host="127.0.0.1",port=self.pm_srv.actual_port))
+        self.loop.run_until_complete(portmap_client.map(cl,100,102,103))
+        self.assertEqual(self.loop.run_until_complete(portmap_client.getport(
+                    client=cl,prog=100,vers=102)),103)
+        self.loop.run_until_complete(portmap_client.map(cl,100,102,105))
+        self.assertEqual(self.loop.run_until_complete(portmap_client.getport(
+                    client=cl,prog=100,vers=102)),105)
+        with self.assertRaises(Exception):
+            self.loop.run_until_complete(portmap_client.map(cl,100,102,999))
         self.loop.run_until_complete(cl.close())
         
     def test_3(self):
