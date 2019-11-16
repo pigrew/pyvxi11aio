@@ -3,3 +3,4 @@ __pycache__
 parser.out
 parsetab.py
 .coverage
+.mypy_cache

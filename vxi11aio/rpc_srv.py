@@ -33,28 +33,34 @@
 # Connect to TCPIP0::127.0.0.1::INSTR
 
 from abc import ABC, abstractmethod
+from typing import Any, Type, Dict, Tuple, Callable, Optional, Awaitable, Coroutine
 import asyncio
 import functools
 import struct
 import sys
+import xdrlib
 
 from .xdr import rpc_const, rpc_type
 from .xdr.rpc_pack import RPCPacker, RPCUnpacker
 
 class rpc_conn(ABC):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        
-    # (prog, vers, proc) => bytes handler_func(self,rpc_msg, buf, buf_ix)
-    call_dispatch_table = None
     
-    def callHandler(unpacker,unpack_func,packer,pack_func):
+    callHandlerType = Callable[[Any,rpc_type.rpc_msg,bytes,int],Coroutine[Any,Any,Optional[bytes]]]
+    
+    # (prog, vers, proc) => bytes handler_func(self,rpc_msg, buf, buf_ix)
+    call_dispatch_table: Dict[Tuple[int,int],Dict[int,callHandlerType]] = {}
+    
+    @staticmethod
+    def callHandler(unpacker: Optional[Type[xdrlib.Unpacker]], unpack_func: Optional[Callable],
+                    packer: Type[xdrlib.Packer], pack_func: Callable):
         """Decorator for RPC call handlers. This automates the packing and
         unpacking of handelers."""
         def decorator(func):
             @functools.wraps(func)
-            async def wrapper(self, rpc_msg, buf, buf_ix):
-                if(unpacker is not None):
+            async def wrapper(self, rpc_msg: rpc_type.rpc_msg, buf: bytes, buf_ix: int) -> Optional[bytes]:
+                if(unpacker is not None and unpack_func is not None):
                     arg_up = unpacker(buf)
                     arg_up.set_position(buf_ix)
                     arg = unpack_func(arg_up)
@@ -70,7 +76,7 @@ class rpc_conn(ABC):
             return wrapper
         return decorator
     
-    async def handleMsg(self, rpc_msg: rpc_type.rpc_msg, buf, buf_ix: int):
+    async def handleMsg(self, rpc_msg: rpc_type.rpc_msg, buf, buf_ix: int) -> Optional[bytes]:
         if(rpc_msg.body.mtype != rpc_const.CALL):
             return None
         cbody = rpc_msg.body.cbody
@@ -87,15 +93,15 @@ class rpc_conn(ABC):
         return await handler(self,rpc_msg, buf, buf_ix)
 
 class rpc_srv(ABC):
-    def __init__(self, port):
+    def __init__(self, port) -> None:
         self.port = port
-        self._server = None
+        self._server: Optional[asyncio.AbstractServer] = None
     
     @abstractmethod
-    def create_conn(self):
+    def create_conn(self) -> rpc_conn:
         pass
     
-    async def HandleRPC(self,reader, writer):
+    async def HandleRPC(self,reader, writer) -> None:
         conn = self.create_conn()
         
         while True:
@@ -123,7 +129,7 @@ class rpc_srv(ABC):
         if(sys.hexversion > 0x03070000):
             await writer.wait_closed()
         
-    def pack_success_data_msg(xid,data):
+    def pack_success_data_msg(xid,data) -> bytes:
         reply = rpc_type.rpc_msg(
             xid=xid,
             body=rpc_type.rpc_msg_body(
@@ -144,7 +150,7 @@ class rpc_srv(ABC):
         #print(f"rep_data={reply}")
         return rpc_p.get_buffer()             
         
-    def pack_reply_msg_unsupported(xid,stat):
+    def pack_reply_msg_unsupported(xid, stat) -> bytes:
         """stat may be [rpc_const.PROG_UNAVAIL,rpc_const.PROC_UNAVAIL]"""
         reply = rpc_type.rpc_msg(
             xid=xid,
@@ -163,20 +169,24 @@ class rpc_srv(ABC):
         rpc_p.pack_rpc_msg(reply)
         return rpc_p.get_buffer()
     
-    async def open(self):
+    async def open(self) -> None:
         self._server = await asyncio.start_server(
                 self.HandleRPC, '127.0.0.1', self.port)
+        if(self._server.sockets is None):
+            raise Exception("Server did not open socket")
         addr = self._server.sockets[0].getsockname()
         print(f'Serving {self.__class__.__name__} on TCP {addr}')
         self.actual_port = self._server.sockets[0].getsockname()[1]
         
-    async def main(self):
+    async def main(self) -> None:
         if(self._server is None):
             await self.open()
+        assert (self._server is not None)
         async with self._server:
             await self._server.serve_forever()
             
-    async def close(self):
+    async def close(self) -> None:
+        assert (self._server is not None)
         print("Closing server")
         self._server.close()
         await self._server.wait_closed()

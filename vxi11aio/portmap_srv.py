@@ -41,9 +41,10 @@ if not sys.warnoptions:
 import asyncio
 #from enum import Enum
 import struct
+from typing import Dict, Tuple, Type
 #from pprint import pprint
 
-from .xdr import portmap_const
+from .xdr import portmap_const, rpc_type
 #import portmap_type
 from .xdr.portmap_pack import PORTMAPPacker, PORTMAPUnpacker
 
@@ -54,15 +55,15 @@ from . import vxi11_srv
 from . import adapter_time
 
 class portmapper():
-    def __init__(self):
-        self.mapping = {}
+    def __init__(self) -> None:
+        self.mapping: Dict[Tuple[int,int,int],int] = {}
 
 class portmap_conn(rpc_srv.rpc_conn):
-    def __init__(self, mapper):
+    def __init__(self, mapper: portmapper) -> None:
         self.mapper = mapper
         super().__init__()
         
-    async def handle_getPort(self,rpc_msg, buf, buf_ix):
+    async def handle_getPort(self, rpc_msg: rpc_type.rpc_msg, buf: bytes, buf_ix: int) -> bytes:
         arg_up = PORTMAPUnpacker(buf)
         arg_up.set_position(buf_ix)
         arg = arg_up.unpack_mapping()
@@ -86,9 +87,9 @@ class portmap_srv(rpc_srv.rpc_srv):
     """ 
     mapping member is a map from (prog,vers,prot) to uint
     """
-    def __init__(self,port,mapper):
+    def __init__(self,port: int, mapper: portmapper) -> None:
         self.mapper = mapper
         super().__init__(port)
         
-    def create_conn(self):
+    def create_conn(self) -> portmap_conn:
         return portmap_conn(self.mapper)

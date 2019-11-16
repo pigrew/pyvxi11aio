@@ -41,8 +41,7 @@
 import sys
 import asyncio
 import os
-
-
+from typing import Type
 
 from vxi11aio import vxi11_srv, adapter_time, portmap_srv, rpc_client, portmap_client
 
@@ -55,7 +54,7 @@ def create_task(x):
     else:
         return x
 
-async def main():
+async def main() -> None:
     
     vxi11_core_srv = vxi11_srv.vxi11_core_srv(port=0,adapters=[adapter_time.adapter()])
     vxi11_async_srv = vxi11_srv.vxi11_async_srv(port=0,adapters=[])

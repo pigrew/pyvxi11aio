@@ -732,9 +732,41 @@ class Info(object):
             return filter1 + filter2
         else:
             return ''
-
+        
+    def getTypeHintStr(self, inTypeClass:bool=False) -> str:
+        hint = None
+        # Types which have no "list"
+        if(self.type == "opaque"):
+            return "bytes"
+        if(self.type == "string"):
+            return "bytes"
+        # Types which may be arrayed:
+        if(self.type in ["uint","int"]):
+            hint = "int"
+        if(self.type == "bool"):
+            hint = "bool"
+        if(hint is not None):
+            if(self.array):
+                return "List[%s]"% (hint)
+            return hint
+        
+        if(self.type in ["struct","union"]):
+            typeInfo = name_dict.get(self.id)
+        else:
+            typeInfo = name_dict.get(self.type)
+        
+        if(typeInfo is not None and typeInfo is not self):
+            return typeInfo.getTypeHintStr(inTypeClass)
+        
+        print(f"{typeInfo}: Unknown type {self.type} {self.id}")
+        
+        if(inTypeClass):
+            return "'%s'" %(self.type)
+        else:
+            return "types.%s" % (self.type)
+    
     def _get_pack_header(self):
-        header = "%sdef pack_%s(self, data):\n" % (indent, self.id)
+        header = "%sdef pack_%s(self, data: %s) -> None:\n" % (indent, self.id, self.getTypeHintStr())
         return header + self._get_filter()
 
     def unpack_output(self):
@@ -766,10 +798,14 @@ class Info(object):
             return "const." + value
 
     def typeinit(self, varlist, prefix=indent):
-        initargs = ''.join([", %s=None" % var.id for var in varlist])
+        initargs = ''.join([(", %s:Optional[%s]=None" % (var.id,var.getTypeHintStr(inTypeClass=True))) for var in varlist])
+        #for i in varlist:
+            #print(f"{i}///{0}//{i.type}//{i.getTypeHintStr()}//{type(i)}")
+            #for x in dir(i):
+            #    print(f"{x}:{getattr(i,x)}")
         initvars = ''.join(["%s%sself.%s = %s\n" % (prefix, indent, var.id, var.id)
                             for var in varlist])
-        return "%sdef __init__(self%s):\n%s" % (prefix, initargs, initvars)
+        return "%sdef __init__(self%s) -> None:\n%s" % (prefix, initargs, initvars)
 
 ##     def typerepr(self, varlist, prefix=indent):
 ##         indent2 = prefix + indent
@@ -795,7 +831,7 @@ class Info(object):
                             "%s%sout += ['%s=%%s' %% %s]\n" %
                             (indent2, var.id, indent2, indent, var.id, special(var))
                             for var in varlist])
-        return "%sdef __repr__(self):\n%sout = []\n" \
+        return "%sdef __repr__(self) -> str:\n%sout: List[str] = []\n" \
                "%s%sreturn '%s(%%s)' %% ', '.join(out)\n" \
                "%s__str__ = __repr__\n" % \
                (prefix, indent2, reprbody, indent2, self.id, prefix)
@@ -994,7 +1030,10 @@ class const_info(Info):
 
     def __lt__(self, other):
         return self.sortno < other.sortno
-
+    
+    def getTypeHintStr(self, inTypeClass=False) -> str:
+        return "int"
+    
     def xdrout(self, prefix=''):
         return "%s%s = %s" % (prefix, self.id, self.value)
 
@@ -1021,7 +1060,10 @@ class enum_info(Info):
 
     def __lt__(self, other):
         return self.sortno < other.sortno
-
+    
+    def getTypeHintStr(self, inTypeClass=False) -> str:
+        return "int"
+    
     def const_output(self):
         body = ''.join(["%s%s : '%s',\n" % (indent, l.value, l.id)
                         for l in self.body])
@@ -1032,7 +1074,7 @@ class enum_info(Info):
         return header + self.packenum(indent2)
 
     def unpack_output(self):
-        header = "%sdef unpack_%s(self):\n" % (indent, self.id)
+        header = "%sdef unpack_%s(self) -> %s:\n" % (indent, self.id, self.getTypeHintStr())
         return header + self.unpackenum(indent2) + \
                self._get_unpack_footer()
 
@@ -1056,7 +1098,12 @@ class struct_info(Info):
 
     def __lt__(self, other):
         return self.sortno < other.sortno
-
+    
+    def getTypeHintStr(self, inTypeClass=False) -> str:
+        if inTypeClass:
+            return "'%s'" % (self.id)
+        return "types.%s" % (self.id)
+    
     def type_output(self):
         comment = '%s# ' % indent
         xdrbody = self.xdrbody(comment)
@@ -1083,7 +1130,7 @@ class struct_info(Info):
             return ''
         candidates = [var for var in varlist if check(var)]
         if len(candidates) == 1:
-            return "%sdef __getattr__(self, attr):\n" \
+            return "%sdef __getattr__(self, attr: str) -> Any:\n" \
                    "%sreturn getattr(self.%s, attr)\n\n" % \
                    (indent, indent2, candidates[0].id)
         else:
@@ -1094,7 +1141,7 @@ class struct_info(Info):
         return header + self.packstruct(indent2)
 
     def unpack_output(self):
-        header = "%sdef unpack_%s(self):\n" % (indent, self.id)
+        header = "%sdef unpack_%s(self) -> types.%s:\n" % (indent, self.id, self.id)
         return header + self.unpackstruct(indent2) + \
                self._get_unpack_footer()
 
@@ -1118,12 +1165,17 @@ class union_info(Info):
 
     def __lt__(self, other):
         return self.sortno < other.sortno
-
+    
     def union_getattr(self, prefix=indent):
-        return "%sdef __getattr__(self, attr):\n"\
+        return "%sdef __getattr__(self, attr: str) -> Any:\n"\
                "%s%sreturn getattr(self.switch, attr)\n" % \
                (prefix, prefix, indent)
-
+               
+    def getTypeHintStr(self, inTypeClass=False) -> str:
+        if inTypeClass:
+            return "'%s'" % (self.id)
+        return "types.%s" % (self.id)
+    
     def union_switch(self, prefix=indent):
         d = '{'
         for l in self.body[1:-1]:
@@ -1170,7 +1222,7 @@ class union_info(Info):
         return header + self.packunion(indent2)
 
     def unpack_output(self):
-        header = "%sdef unpack_%s(self):\n" % (indent, self.id)
+        header = "%sdef unpack_%s(self) -> types.%s:\n" % (indent, self.id, self.id)
         return header + self.unpackunion(indent2) + \
                self._get_unpack_footer()
 
@@ -1181,6 +1233,7 @@ class type_info(Info):
         self.lineno = self.sortno = lineno
         self.body = body
         self.array = False
+        self.is_enum = False
         if self.array:
             self.len = None
             self.fixed = False
@@ -1356,8 +1409,8 @@ allow_attr_passthrough = True # Option which allows substructure attrs to
 pack_header = """\
 import sys,os
 sys.path.append(os.path.dirname(__file__))
-import %s as const
-import %s as types
+from typing import Any, List, Optional, Union
+from vxi11aio.xdr import %s as const, %s as types
 import xdrlib
 from xdrlib import Error as XDRError
 
@@ -1368,7 +1421,7 @@ class nullclass(object):
 
 pack_init = """\
 class %sPacker(xdrlib.Packer):
-%sdef __init__(self, check_enum=True, check_array=True):
+%sdef __init__(self, check_enum:bool=True, check_array:bool=True) -> None:
 %sxdrlib.Packer.__init__(self)
 %sself.check_enum = check_enum
 %sself.check_array = check_array
@@ -1377,7 +1430,7 @@ class %sPacker(xdrlib.Packer):
 
 unpack_init = """\
 class %sUnpacker(xdrlib.Unpacker):
-%sdef __init__(self, data, check_enum=True, check_array=True):
+%sdef __init__(self, data:bytes, check_enum:bool=True, check_array:bool=True) -> None:
 %sxdrlib.Unpacker.__init__(self, data)
 %sself.check_enum = check_enum
 %sself.check_array = check_array
@@ -1440,7 +1493,7 @@ def run(infile, filters=True, pass_attrs=True, debug=False):
     const_fd.write(comment_string)
     type_fd = open(types_file + ".py", "w")
     type_fd.write(comment_string)
-    type_fd.write("import sys,os\nsys.path.append(os.path.dirname(__file__))\nimport %s as const\n" % constants_file)
+    type_fd.write("import sys,os\nsys.path.append(os.path.dirname(__file__))\nfrom typing import Any, List, Optional, Union\nfrom vxi11aio.xdr import %s as const\n" % constants_file)
     pack_fd = open(packer_file + ".py", "w")
     pack_fd.write(comment_string)
     pack_fd.write(pack_header % (constants_file, types_file))

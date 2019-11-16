@@ -412,8 +412,10 @@ class vxi11_abort_conn(rpc_conn):
         return rsp
     
     call_dispatch_table = {
-            (vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION, vxi11_const.device_abort): handle_device_abort
+            (vxi11_const.DEVICE_ASYNC,vxi11_const.DEVICE_ASYNC_VERSION): {
+                    vxi11_const.device_abort: handle_device_abort
             }
+        }
 
 class vxi11_core_srv(rpc_srv):
     """ 

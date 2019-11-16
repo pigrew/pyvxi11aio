@@ -33,10 +33,8 @@
 # This implements a "time-server" adapter
 
 import asyncio
-import enum
-import struct
 import time
-from pprint import pprint
+from typing import Any, Type, Dict, Tuple, Callable, Optional, Awaitable, Coroutine
 
 from .vxi11_srv import vxi11_errorCodes, vxi11_deviceFlags, vxi11_readReason
 from .vxi11_adapter import vxi11_link, vxi11_adapter
@@ -44,11 +42,11 @@ from .vxi11_adapter import vxi11_link, vxi11_adapter
 
 class link(vxi11_link):
     def __init__(self, link_id: int, device: bytes, adapter: 'adapter', conn):
-        self.outBuf = None
+        self.outBuf: Optional[bytes] = None
         self.device_name = device
         super().__init__(link_id=link_id, adapter=adapter, conn=conn)
         
-    async def write(self, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, data: bytes):
+    async def write(self, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, data: bytes) -> Tuple[vxi11_errorCodes,int]:
         """Return (errorCode, size)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, PARAMETER_ERROR,
@@ -57,7 +55,7 @@ class link(vxi11_link):
         await self.acquire_io_lock(flags,lock_timeout=lock_timeout, io_timeout=io_timeout)
         if(data.lower().startswith(b'*idn?')):
             self.outBuf = b"TIME_SERVER,0," + self.device_name + b'\n'
-        elif(data.lower().startswith("time?")):
+        elif(data.lower().startswith(b"time?")):
             self.outBuf = str.encode(time.strftime("%H:%M:%S +0000", time.gmtime()))
         else:
             self.outBuf = b"INVALID_QUERY\n"
@@ -65,7 +63,7 @@ class link(vxi11_link):
             
         return (vxi11_errorCodes.NO_ERROR,len(data))
         
-    async def read(self, requestSize: int, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, termChar: int):
+    async def read(self, requestSize: int, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, termChar: int) -> Tuple[vxi11_errorCodes,int,bytes]:
         """Return (errorCode, vxi11_readReason, data: bytes)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, DEVICE_LOCKED_BY_ANOTHER_LINK,
