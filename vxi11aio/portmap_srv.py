@@ -52,7 +52,6 @@ from .xdr import vxi11_const
 
 from . import rpc_srv
 from . import vxi11_srv
-from . import adapter_time
 
 class portmapper():
     def __init__(self) -> None:
@@ -67,6 +66,10 @@ class portmap_conn(rpc_srv.rpc_conn):
         arg_up = PORTMAPUnpacker(buf)
         arg_up.set_position(buf_ix)
         arg = arg_up.unpack_mapping()
+        assert (arg.prog is not None)
+        assert (arg.vers is not None)
+        assert (arg.prot is not None)
+        assert (rpc_msg.xid is not None)
         print(f"mapping = {arg}")
         port = self.mapper.mapping.get((arg.prog,arg.vers,arg.prot))
         print(f"port is {port}, xid={rpc_msg.xid}")

@@ -72,6 +72,7 @@ class rpc_conn(ABC):
                 print(f"{func.__name__} <<< {arg}")
                 p = packer()
                 pack_func(p,rsp)
+                assert(rpc_msg.xid is not None)
                 return rpc_srv.pack_success_data_msg(rpc_msg.xid,p.get_buffer())
             return wrapper
         return decorator
@@ -79,6 +80,9 @@ class rpc_conn(ABC):
     async def handleMsg(self, rpc_msg: rpc_type.rpc_msg, buf, buf_ix: int) -> Optional[bytes]:
         if(rpc_msg.body.mtype != rpc_const.CALL):
             return None
+        assert(rpc_msg.xid is not None)
+        assert(rpc_msg.body is not None)
+        assert(rpc_msg.body.cbody is not None)
         cbody = rpc_msg.body.cbody
         progHandlers = self.call_dispatch_table.get((cbody.prog,cbody.vers))
         if(progHandlers is None):
@@ -128,8 +132,9 @@ class rpc_srv(ABC):
         writer.close()
         if(sys.hexversion > 0x03070000):
             await writer.wait_closed()
-        
-    def pack_success_data_msg(xid,data) -> bytes:
+            
+    @staticmethod
+    def pack_success_data_msg(xid:int,data:bytes) -> bytes:
         reply = rpc_type.rpc_msg(
             xid=xid,
             body=rpc_type.rpc_msg_body(
@@ -149,8 +154,8 @@ class rpc_srv(ABC):
         rpc_p.pack_fopaque(len(data),data)
         #print(f"rep_data={reply}")
         return rpc_p.get_buffer()             
-        
-    def pack_reply_msg_unsupported(xid, stat) -> bytes:
+    @staticmethod
+    def pack_reply_msg_unsupported(xid:int, stat:int) -> bytes:
         """stat may be [rpc_const.PROG_UNAVAIL,rpc_const.PROC_UNAVAIL]"""
         reply = rpc_type.rpc_msg(
             xid=xid,
@@ -172,6 +177,7 @@ class rpc_srv(ABC):
     async def open(self) -> None:
         self._server = await asyncio.start_server(
                 self.HandleRPC, '127.0.0.1', self.port)
+        assert(self._server is not None)
         if(self._server.sockets is None):
             raise Exception("Server did not open socket")
         addr = self._server.sockets[0].getsockname()

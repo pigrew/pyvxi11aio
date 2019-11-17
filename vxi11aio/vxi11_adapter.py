@@ -200,7 +200,7 @@ class vxi11_link:
 class vxi11_adapter:   
     adapter_io_lock: asyncio.Lock
     adapter_excl_lock: asyncio.Lock
-    adapter_excl_lock_owner: vxi11_link
+    adapter_excl_lock_owner: Optional[vxi11_link]
     
     def __init__(self):
         self.adapter_io_lock = asyncio.Lock()
