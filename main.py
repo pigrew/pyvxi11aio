@@ -47,17 +47,10 @@ from vxi11aio import vxi11_srv, adapter_time, portmap_srv, rpc_client, portmap_c
 
 from vxi11aio.xdr import vxi11_const, portmap_const
 
-
-def create_task(x):
-    if(sys.hexversion >= 0x03070000):
-        return asyncio.create_task(x)
-    else:
-        return x
-
 async def main() -> None:
     
     vxi11_core_srv = vxi11_srv.vxi11_core_srv(port=0,adapters=[adapter_time.adapter()])
-    vxi11_async_srv = vxi11_srv.vxi11_async_srv(port=0,adapters=[])
+    vxi11_async_srv = vxi11_srv.vxi11_async_srv(port=0)
     
     # Open sockets so that we can get the actual port numbers
     await asyncio.gather(vxi11_core_srv.open(),vxi11_async_srv.open())
@@ -73,8 +66,8 @@ async def main() -> None:
         except ConnectionRefusedError:
             print("Could not connect to portmapper.... attempting to start our own")
             cl = None
-    tasks = [create_task(vxi11_core_srv.main()),
-             create_task(vxi11_async_srv.main()),
+    tasks = [asyncio.create_task(vxi11_core_srv.main()),
+             asyncio.create_task(vxi11_async_srv.main()),
              ]   
     if (cl is not None):
         print("Requesting RPC mapping")
@@ -91,7 +84,7 @@ async def main() -> None:
                         portmap_const.IPPROTO_TCP)] = vxi11_async_srv.actual_port
         
         pm_srv = portmap_srv.portmap_srv(mapper=mapper,port=111)
-        pm_task = create_task(pm_srv.main())
+        pm_task = asyncio.create_task(pm_srv.main())
         tasks = tasks + [pm_task]
     vxi11_core_srv.abort_port = vxi11_async_srv.actual_port
     await asyncio.gather(*tasks, return_exceptions=True)

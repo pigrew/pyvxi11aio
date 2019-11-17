@@ -32,6 +32,7 @@
 
 # Connect to TCPIP0::127.0.0.1::INSTR
 
+import os
 import sys
 import asyncio
 import struct
@@ -39,30 +40,37 @@ from abc import ABC, abstractmethod
 
 from .xdr import rpc_const, rpc_type
 from .xdr.rpc_pack import RPCPacker, RPCUnpacker
+from typing import Optional, Tuple, Union
 
 class rpc_client():
     # Don't connect in the constructor, since it should be asynchronous!
-    def __init__(self):
+    def __init__(self) -> None:
         self._xid = 100
+        self._reader: Optional[asyncio.StreamReader]  = None
+        self._writer: Optional[asyncio.StreamWriter] = None
     
-    async def connect(self, host, port):
+    async def connect(self, host: str, port: int) -> None:
         print(f"Opening RPC client connection to {host}:{port}")
         self._reader, self._writer = await asyncio.open_connection(
                 host, port)
     
-    async def connect_unix(self, path):
+    async def connect_unix(self, path: Union[str, bytes, 'os.PathLike[str]']) -> None:
         print(f"Opening UNIX RPC connection to {path}")
         self._reader, self._writer = await asyncio.open_unix_connection(
             path=path)
         
-    async def close(self):
+    async def close(self) -> None:
+        assert (self._reader is not None)
+        assert (self._writer is not None)
         self._writer.close()
         if(sys.hexversion > 0x03070000):
             await self._writer.wait_closed()
         self._writer = None
         self._reader = None
         
-    async def call(self, prognum, vers, proc, data: bytes, read_reply = True):
+    async def call(self, prognum: int, vers: int, proc: int, data: bytes, read_reply: bool = True) -> Union[Tuple[None,None],Tuple[bytes,rpc_type.rpc_msg]]:
+        assert (self._reader is not None)
+        assert (self._writer is not None)
         cbody = rpc_type.call_body(
                 rpcvers=2,
                 prog=prognum,

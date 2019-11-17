@@ -43,21 +43,23 @@ import xdrlib
 from .xdr import rpc_const, rpc_type
 from .xdr.rpc_pack import RPCPacker, RPCUnpacker
 
+callHandlerType = Callable[[Any,rpc_type.rpc_msg,bytes,int],Coroutine[Any,Any,Optional[bytes]]]
+unpackedCallHandlertype = Callable[[Any,rpc_type.rpc_msg,Any],Coroutine[Any,Any,Any]]
+
 class rpc_conn(ABC):
     def __init__(self) -> None:
         super().__init__()
-    
-    callHandlerType = Callable[[Any,rpc_type.rpc_msg,bytes,int],Coroutine[Any,Any,Optional[bytes]]]
     
     # (prog, vers, proc) => bytes handler_func(self,rpc_msg, buf, buf_ix)
     call_dispatch_table: Dict[Tuple[int,int],Dict[int,callHandlerType]] = {}
     
     @staticmethod
-    def callHandler(unpacker: Optional[Type[xdrlib.Unpacker]], unpack_func: Optional[Callable],
-                    packer: Type[xdrlib.Packer], pack_func: Callable):
+    def callHandler(unpacker: Optional[Type[xdrlib.Unpacker]], unpack_func: Optional[Callable[[Any],Any]],
+                    packer: Type[xdrlib.Packer], pack_func: Callable[[Any,Any],None]) -> Callable[[unpackedCallHandlertype],callHandlerType]:
         """Decorator for RPC call handlers. This automates the packing and
         unpacking of handelers."""
-        def decorator(func):
+        def decorator(func: unpackedCallHandlertype) -> callHandlerType:
+            
             @functools.wraps(func)
             async def wrapper(self, rpc_msg: rpc_type.rpc_msg, buf: bytes, buf_ix: int) -> Optional[bytes]:
                 if(unpacker is not None and unpack_func is not None):
@@ -77,13 +79,17 @@ class rpc_conn(ABC):
             return wrapper
         return decorator
     
-    async def handleMsg(self, rpc_msg: rpc_type.rpc_msg, buf, buf_ix: int) -> Optional[bytes]:
+    async def handleMsg(self, rpc_msg: rpc_type.rpc_msg, buf: bytes, buf_ix: int) -> Optional[bytes]:
+        assert (rpc_msg.body is not None)
         if(rpc_msg.body.mtype != rpc_const.CALL):
             return None
         assert(rpc_msg.xid is not None)
         assert(rpc_msg.body is not None)
         assert(rpc_msg.body.cbody is not None)
         cbody = rpc_msg.body.cbody
+        assert (cbody.prog is not None)
+        assert (cbody.vers is not None)
+        assert (cbody.proc is not None)
         progHandlers = self.call_dispatch_table.get((cbody.prog,cbody.vers))
         if(progHandlers is None):
             print(f"RPC(prog={cbody.prog,cbody.vers}) not implemented")
@@ -97,7 +103,7 @@ class rpc_conn(ABC):
         return await handler(self,rpc_msg, buf, buf_ix)
 
 class rpc_srv(ABC):
-    def __init__(self, port) -> None:
+    def __init__(self, port: int) -> None:
         self.port = port
         self._server: Optional[asyncio.AbstractServer] = None
     
@@ -105,7 +111,7 @@ class rpc_srv(ABC):
     def create_conn(self) -> rpc_conn:
         pass
     
-    async def HandleRPC(self,reader, writer) -> None:
+    async def HandleRPC(self,reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         conn = self.create_conn()
         
         while True:

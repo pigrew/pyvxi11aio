@@ -41,7 +41,7 @@ from .xdr import rpc_const, portmap_type, portmap_const
 from .xdr.portmap_pack import PORTMAPPacker, PORTMAPUnpacker
 from . import rpc_client
 
-async def map(client, prog, vers, port):
+async def map(client: rpc_client.rpc_client, prog: int, vers: int, port: int) -> None:
     mapping = portmap_type.mapping(prog=prog, vers=vers, prot=portmap_const.IPPROTO_TCP, port=port)
     p = PORTMAPPacker()
     p.pack_mapping(mapping)
@@ -54,7 +54,7 @@ async def map(client, prog, vers, port):
         raise Exception(f"Request to map port {port} for prog {prog}.{vers} failed.")
     print("Mapping done?")
     
-async def getport(client, prog, vers):
+async def getport(client: rpc_client.rpc_client, prog: int, vers: int) -> int:
     mapping = portmap_type.mapping(prog=prog, vers=vers, prot=portmap_const.IPPROTO_TCP, port=0)
     p = PORTMAPPacker()
     p.pack_mapping(mapping)
@@ -66,7 +66,7 @@ async def getport(client, prog, vers):
     print(f"rsp = {rsp}")
     return rsp
 
-async def main():
+async def main() -> None:
     cl = rpc_client.rpc_client()
     
     #await cl.connect("127.0.0.1",portmap_const.PMAP_PORT)

@@ -36,12 +36,12 @@ import asyncio
 import time
 from typing import Any, Type, Dict, Tuple, Callable, Optional, Awaitable, Coroutine
 
-from .vxi11_srv import vxi11_errorCodes, vxi11_deviceFlags, vxi11_readReason
+from .vxi11_srv import vxi11_errorCodes, vxi11_deviceFlags, vxi11_readReason, vxi11_core_conn
 from .vxi11_adapter import vxi11_link, vxi11_adapter
 
 
 class link(vxi11_link):
-    def __init__(self, link_id: int, device: bytes, adapter: 'adapter', conn):
+    def __init__(self, link_id: int, device: bytes, adapter: 'adapter', conn: vxi11_core_conn):
         self.outBuf: Optional[bytes] = None
         self.device_name = device
         super().__init__(link_id=link_id, adapter=adapter, conn=conn)
@@ -77,7 +77,7 @@ class link(vxi11_link):
         
         return (vxi11_errorCodes.IO_TIMEOUT,0,b'')
         
-    async def read_stb(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int):
+    async def read_stb(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int) -> Tuple[vxi11_errorCodes,int]:
         """Return (errorCode, stb)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
@@ -85,17 +85,18 @@ class link(vxi11_link):
         """
         return (vxi11_errorCodes.NO_ERROR,0x23)
     
-    def timeout_cb(self):
+    def timeout_cb(self) -> None:
         print("link TIMEOUT! (and potentially SRQ)")
         self.th = asyncio.get_running_loop().call_later(delay=6, callback=self.timeout_cb)
         if(self.srq_handle is not None):
             self.conn.send_srq(self.srq_handle)
         
 class adapter(vxi11_adapter):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         
-    async def create_link(self, clientId: int, lockDevice: bool, lock_timeout: int, device: bytes, link_id: int, conn):
+    async def create_link(self, clientId: int, lockDevice: bool,
+                          lock_timeout: int, device: bytes, link_id: int, conn:vxi11_core_conn) -> Tuple[vxi11_errorCodes,link]:
         """ Returns (errorcode,link)"""
         # Errorcode may be NO_ERROR, SYNTAX_ERROR, DEVICE_NOT_ACCESSIBLE,
         #    OUT_OF_RESOURCES, DEVICE_LOCKED_BY_ANOTHER_LINK, INVALID_ADDRESS

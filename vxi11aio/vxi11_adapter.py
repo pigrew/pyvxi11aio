@@ -49,17 +49,19 @@
 # IO lock is global to the adapter.
 
 import asyncio
-from .vxi11_srv import vxi11_deviceFlags, vxi11_errorCodes
+from typing import Optional, Tuple
+from .vxi11_srv import vxi11_deviceFlags, vxi11_errorCodes, vxi11_core_conn
 
 class vxi11_link:
     
-    def __init__(self, link_id: int, adapter: 'vxi11_adapter', conn):
+    def __init__(self, link_id: int, adapter: 'vxi11_adapter', conn: vxi11_core_conn):
         self.adapter = adapter
         self.link_id = link_id
         self.conn = conn
         self.srq_handle = None # set to a bytes[40] when SRQ are enabled
         
-    async def read(self, requestSize: int, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, termChar: int):
+    async def read(self, requestSize: int, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags,
+                   termChar: int) -> Tuple[vxi11_errorCodes, int, bytes]:
         """Return (errorCode, vxi11_readReason, data: bytes)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, DEVICE_LOCKED_BY_ANOTHER_LINK,
@@ -67,7 +69,8 @@ class vxi11_link:
         """
         return (vxi11_errorCodes.IO_ERROR, 0, b'')
     
-    async def write(self, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, data: bytes):
+    async def write(self, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags,
+                    data: bytes) -> Tuple[vxi11_errorCodes, int]:
         """Return (errorCode, size)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, PARAMETER_ERROR,
@@ -75,7 +78,8 @@ class vxi11_link:
         """
         return (vxi11_errorCodes.IO_ERROR, 0)
     
-    async def read_stb(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int):
+    async def read_stb(self, flags: vxi11_deviceFlags, lock_timeout: int,
+                       io_timeout: int) -> Tuple[vxi11_errorCodes, int]:
         """Return (errorCode, stb)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
@@ -83,7 +87,8 @@ class vxi11_link:
         """
         return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED,0)
     
-    async def trigger(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int):
+    async def trigger(self, flags: vxi11_deviceFlags, lock_timeout: int,
+                      io_timeout: int) -> vxi11_errorCodes:
         """Return (errorCode)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
@@ -91,7 +96,8 @@ class vxi11_link:
         """
         return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED)
     
-    async def clear(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int):
+    async def clear(self, flags: vxi11_deviceFlags, lock_timeout: int,
+                    io_timeout: int) -> vxi11_errorCodes:
         """Return (errorCode)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
@@ -100,7 +106,8 @@ class vxi11_link:
         return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED)
     
     
-    async def local(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int):
+    async def local(self, flags: vxi11_deviceFlags,
+                    lock_timeout: int, io_timeout: int) -> vxi11_errorCodes:
         """Return (errorCode)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
@@ -108,15 +115,18 @@ class vxi11_link:
         """
         return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED)
     
-    async def remote(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int):
+    async def remote(self, flags: vxi11_deviceFlags,
+                     lock_timeout: int, io_timeout: int) -> vxi11_errorCodes:
         """Return (errorCode)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
         DEVICE_LOCKED_BY_ANOTHER_LINK, IO_TIMEOUT, IO_ERROR, or ABORT
         """
-        return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED)  
+        return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED) 
+    
     async def docmd(self, flags: vxi11_deviceFlags, io_timeout: int, lock_timeout: int,
-                    cmd: int, network_order: bool, datasize, data_in: bytes):
+                    cmd: int, network_order: bool, datasize: int,
+                    data_in: bytes)  -> Tuple[vxi11_errorCodes, bytes]:
         """Return (errorCode,data_out)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
@@ -124,7 +134,7 @@ class vxi11_link:
         """
         return (vxi11_errorCodes.OPERATION_NOT_SUPPORTED,b'')  
     
-    async def destroy(self):
+    async def destroy(self) -> vxi11_errorCodes:
         """If it got here, link must exist. NO_ERROR is only valid response"""
         # Unlock if necessary
         if(self.adapter.adapter_excl_lock_owner is self):
@@ -132,7 +142,7 @@ class vxi11_link:
             self.adapter.adapter_excl_lock.release()
         return vxi11_errorCodes.NO_ERROR
     
-    async def device_lock(self, flags: vxi11_deviceFlags, lock_timeout: int):
+    async def device_lock(self, flags: vxi11_deviceFlags, lock_timeout: int) -> vxi11_errorCodes:
         """Return (errorCode)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER,
@@ -153,7 +163,7 @@ class vxi11_link:
         self.adapter.adapter_excl_lock_owner = self
         return (vxi11_errorCodes.NO_ERROR) 
     
-    async def device_unlock(self):
+    async def device_unlock(self) -> vxi11_errorCodes:
         """Return (errorCode)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, NO_LOCK_HELD_BY_THIS_LINK
@@ -193,7 +203,7 @@ class vxi11_link:
             return False
         return True
         
-    def release_io_lock(self):
+    def release_io_lock(self) -> None:
         """Returns true if lock is acquired"""
         self.adapter.adapter_io_lock.release()
 
@@ -202,12 +212,14 @@ class vxi11_adapter:
     adapter_excl_lock: asyncio.Lock
     adapter_excl_lock_owner: Optional[vxi11_link]
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.adapter_io_lock = asyncio.Lock()
         self.adapter_excl_lock = asyncio.Lock()
         self.adapter_excl_lock_owner = None
     
-    async def create_link(self, clientId: int, lockDevice: bool, lock_timeout: int, device: bytes, link_id: int, conn):
+    async def create_link(self, clientId: int, lockDevice: bool,
+                          lock_timeout: int, device: bytes, link_id: int,
+                          conn: vxi11_core_conn) -> Tuple[vxi11_errorCodes,Optional[vxi11_link]]:
         """ Returns (errorcode,link)"""
         # Errorcode may be NO_ERROR, SYNTAX_ERROR, DEVICE_NOT_ACCESSIBLE,
         #    OUT_OF_RESOURCES, DEVICE_LOCKED_BY_ANOTHER_LINK, INVALID_ADDRESS
