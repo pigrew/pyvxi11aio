@@ -54,8 +54,8 @@ class rpc_client():
         self._reader, self._writer = await asyncio.open_connection(
                 host, port)
     
-    async def connect_unix(self, path: Union[str, bytes, 'os.PathLike[str]']) -> None:
-        print(f"Opening UNIX RPC connection to {path}")
+    async def connect_unix(self, path: Union[str, 'os.PathLike[str]']) -> None:
+        print(f"Opening UNIX RPC connection to {path.__repr__()}")
         self._reader, self._writer = await asyncio.open_unix_connection(
             path=path)
         

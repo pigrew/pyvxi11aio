@@ -35,6 +35,7 @@
 import sys
 import asyncio
 import struct
+from typing import cast
 from abc import ABC, abstractmethod
 
 from .xdr import rpc_const, portmap_type, portmap_const
@@ -47,6 +48,7 @@ async def map(client: rpc_client.rpc_client, prog: int, vers: int, port: int) ->
     p.pack_mapping(mapping)
     rsp, msg = await client.call( portmap_const.PMAP_PROG, vers=portmap_const.PMAP_VERS,
                   proc=portmap_const.PMAPPROC_SET, data = p.get_buffer())
+    assert (rsp is not None)
     rsp = struct.unpack(">I",rsp)[0]
     if((msg.body.rbody.stat != rpc_const.MSG_ACCEPTED) or (msg.body.rbody.areply.reply_data.stat != rpc_const.SUCCESS)):
         raise Exception(f"Request to RPC portmapper map port {port} for prog {prog}.{vers} not supported: {msg}.")
@@ -62,9 +64,10 @@ async def getport(client: rpc_client.rpc_client, prog: int, vers: int) -> int:
                   proc=portmap_const.PMAPPROC_GETPORT, data = p.get_buffer())
     if((msg.body.rbody.stat != rpc_const.MSG_ACCEPTED) or (msg.body.rbody.areply.reply_data.stat != rpc_const.SUCCESS)):
         raise Exception(f"Request to RPC portmapper to get port for prog {prog}.{vers} not supported: {msg}.")
-    rsp = struct.unpack(">I",rsp)[0]
-    print(f"rsp = {rsp}")
-    return rsp
+    assert(rsp is not None)
+    rspVal = struct.unpack(">I",rsp)[0]
+    print(f"rsp = {rspVal}")
+    return rspVal
 
 async def main() -> None:
     cl = rpc_client.rpc_client()

@@ -33,7 +33,7 @@
 # Connect to TCPIP0::127.0.0.1::INSTR
 
 from abc import ABC, abstractmethod
-from typing import Any, Type, Dict, Tuple, Callable, Optional, Awaitable, Coroutine
+from typing import Any, Dict, Awaitable, Callable, Coroutine, Optional, Type, Tuple, TypeVar, overload
 import asyncio
 import functools
 import struct
@@ -43,8 +43,11 @@ import xdrlib
 from .xdr import rpc_const, rpc_type
 from .xdr.rpc_pack import RPCPacker, RPCUnpacker
 
+
+rpcArgType = TypeVar('rpcArgType')
 callHandlerType = Callable[[Any,rpc_type.rpc_msg,bytes,int],Coroutine[Any,Any,Optional[bytes]]]
-unpackedCallHandlertype = Callable[[Any,rpc_type.rpc_msg,Any],Coroutine[Any,Any,Any]]
+unpackedCallHandlerVoidtype = Callable[[Any,rpc_type.rpc_msg,None],Coroutine[Any,Any,Any]]
+unpackedCallHandlertype = Callable[[Any,rpc_type.rpc_msg,rpcArgType],Coroutine[Any,Any,Any]]
 
 class rpc_conn(ABC):
     def __init__(self) -> None:
@@ -53,15 +56,27 @@ class rpc_conn(ABC):
     # (prog, vers, proc) => bytes handler_func(self,rpc_msg, buf, buf_ix)
     call_dispatch_table: Dict[Tuple[int,int],Dict[int,callHandlerType]] = {}
     
+    # For void arguments:
+    @overload
     @staticmethod
-    def callHandler(unpacker: Optional[Type[xdrlib.Unpacker]], unpack_func: Optional[Callable[[Any],Any]],
+    def callHandler(unpacker: None, unpack_func: None,
+                    packer: Type[xdrlib.Packer], pack_func: Callable[[Any,Any],None]) -> Callable[[unpackedCallHandlerVoidtype],callHandlerType]:
+        pass
+    
+    @overload
+    @staticmethod
+    def callHandler(unpacker: Type[xdrlib.Unpacker], unpack_func: Callable[[Any],rpcArgType],
                     packer: Type[xdrlib.Packer], pack_func: Callable[[Any,Any],None]) -> Callable[[unpackedCallHandlertype],callHandlerType]:
+        pass
+    
+    @staticmethod
+    def callHandler(unpacker, unpack_func, packer, pack_func):
         """Decorator for RPC call handlers. This automates the packing and
         unpacking of handelers."""
         def decorator(func: unpackedCallHandlertype) -> callHandlerType:
             
             @functools.wraps(func)
-            async def wrapper(self, rpc_msg: rpc_type.rpc_msg, buf: bytes, buf_ix: int) -> Optional[bytes]:
+            async def wrapper(self, rpc_msg: rpc_type.rpc_msg, buf: bytes, buf_ix: int) -> bytes:
                 if(unpacker is not None and unpack_func is not None):
                     arg_up = unpacker(buf)
                     arg_up.set_position(buf_ix)

@@ -36,67 +36,103 @@
 # serialize requests.
 
 import asyncio
-import enum
-import struct
+import concurrent
 import time
-from pprint import pprint
+from typing import Any, Type, Dict, Tuple, Callable, Optional, Awaitable, Coroutine
 
-from vxi11_srv import vxi11_errorCodes, vxi11_deviceFlags, vxi11_readReason
-from vxi11_adapter import vxi11_link, vxi11_adapter
+from .vxi11_srv import vxi11_errorCodes, vxi11_deviceFlags, vxi11_readReason, vxi11_core_conn
+from .vxi11_adapter import vxi11_link, vxi11_adapter
+
+import pyvisa
 
 
 class link(vxi11_link):
-    def __init__(self, link_id: int, device: bytes, adapter: 'adapter'):
-        self.outBuf = None
+    def __init__(self, link_id: int, device: bytes, adapter: 'adapter', conn: vxi11_core_conn):
+        self.outBuf: Optional[bytes] = None
         self.device_name = device
-        super().__init__(link_id=link_id, adapter=adapter)
+        super().__init__(link_id=link_id, adapter=adapter, conn=conn)
         
-    async def write(self, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, data: bytes):
+    async def write(self, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, data: bytes) -> Tuple[vxi11_errorCodes,int]:
         """Return (errorCode, size)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, PARAMETER_ERROR,
         DEVICE_LOCKED_BY_ANOTHER_LINK, IO_TIMEOUT, IO_ERROR, or abort
         """
-        await self.acquire_io_lock(flags,lock_timeout=lock_timeout, io_timeout=io_timeout)
-        if(data.lower().startswith(b'*idn?')):
-            self.outBuf = b"TIME_SERVER,0," + self.device_name + b'\n'
-        elif(data.lower().startswith("time?")):
-            self.outBuf = str.encode(time.strftime("%H:%M:%S +0000", time.gmtime()))
-        else:
-            self.outBuf = b"INVALID_QUERY\n"
+        if (not await self.acquire_io_lock(flags,lock_timeout=lock_timeout, io_timeout=io_timeout)):
+            return (vxi11_errorCodes.IO_TIMEOUT,0)
+        def f(inst: pyvisa.resources.MessageBasedResource, data: bytes) -> Tuple[int,pyvisa.constants.StatusCode]:
+            l = inst.write_raw(data)
+            return l
+        (l,_) = await asyncio.get_event_loop().run_in_executor(self.adapter._exec, f, self.adapter.inst, data)
         self.release_io_lock()
-            
-        return (vxi11_errorCodes.NO_ERROR,len(data))
+        print(l)
+        return (vxi11_errorCodes.NO_ERROR,l)
         
-    async def read(self, requestSize: int, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, termChar: int):
+    async def read(self, requestSize: int, io_timeout: int, lock_timeout: int, flags: vxi11_deviceFlags, termChar: int) -> Tuple[vxi11_errorCodes,int,bytes]:
         """Return (errorCode, vxi11_readReason, data: bytes)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, DEVICE_LOCKED_BY_ANOTHER_LINK,
         IO_TIMEOUT, IO_ERROR, or abort
         """
-        if(self.outBuf is not None):
-            await asyncio.sleep(2)
-            ret = (vxi11_errorCodes.NO_ERROR,vxi11_readReason.END, self.outBuf)
-            self.outBuf = None
-            return ret
         
-        return (vxi11_errorCodes.IO_TIMEOUT,0,b'')
+        if (not await self.acquire_io_lock(flags,lock_timeout=lock_timeout, io_timeout=io_timeout)):
+            return (vxi11_errorCodes.IO_TIMEOUT,0,b'')
+        def f(inst: pyvisa.resources.MessageBasedResource, requestSize: int) -> bytes:
+            return inst.read_raw(requestSize)
+            #return inst.read()
+        data = await asyncio.get_event_loop().run_in_executor(self.adapter._exec, f, self.adapter.inst, requestSize)
+        self.release_io_lock()
+        print(f"{data!r}")
+        return (vxi11_errorCodes.NO_ERROR,vxi11_readReason.END,data)
         
-    async def read_stb(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int):
+    async def read_stb(self, flags: vxi11_deviceFlags, lock_timeout: int, io_timeout: int) -> Tuple[vxi11_errorCodes,int]:
         """Return (errorCode, stb)
         
         Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
         DEVICE_LOCKED_BY_ANOTHER_LINK, IO_TIMEOUT, IO_ERROR, or abort
         """
-        return (vxi11_errorCodes.NO_ERROR,0x23)
+        def f(inst: pyvisa.resources.MessageBasedResource) -> int:
+            return inst.read_stb()
+        if(not await self.acquire_io_lock(flags,lock_timeout=lock_timeout, io_timeout=io_timeout)):
+            return (vxi11_errorCodes.IO_TIMEOUT,0)
+        stb = await asyncio.get_event_loop().run_in_executor(self.adapter._exec, f,self.adapter.inst)
+        self.release_io_lock()
+        return (vxi11_errorCodes.NO_ERROR,stb)
+    
+    async def clear(self, flags: vxi11_deviceFlags, lock_timeout: int,
+                    io_timeout: int) -> vxi11_errorCodes:
+        """Return (errorCode)
+        
+        Errorcode may be NO_ERROR, INVALID_LINK_IDENTIFIER, OPERATION_NOT_SUPPORTED,
+        DEVICE_LOCKED_BY_ANOTHER_LINK, IO_TIMEOUT, IO_ERROR, or ABORT
+        """
+        if (not await self.acquire_io_lock(flags,lock_timeout=lock_timeout, io_timeout=io_timeout)):
+            return (vxi11_errorCodes.IO_TIMEOUT)
+        def f(inst: pyvisa.resources.MessageBasedResource) -> pyvisa.constants.StatusCode:
+            # Pyvisa discards the return value of the call to viClear, so lets call it directly
+            return inst.visalib.clear(inst.session)
+        sc = await asyncio.get_event_loop().run_in_executor(self.adapter._exec, f, self.adapter.inst)
+        self.release_io_lock()
+        scMap = {
+                pyvisa.constants.StatusCode.success: vxi11_errorCodes.NO_ERROR,
+                pyvisa.constants.StatusCode.error_timeout: vxi11_errorCodes.IO_TIMEOUT,
+                }
+        return (scMap.get(sc, vxi11_errorCodes.IO_ERROR))
     
 class adapter(vxi11_adapter):
-    def __init__(self):
+    def __init__(self, visaAddress: str, visa_library:str='') -> None:
+        self.visaAddress: str = visaAddress
+        rm = pyvisa.ResourceManager(visa_library=visa_library)
+        self.inst: pyvisa.resources.MessageBasedResource = rm.open_resource(visaAddress)
+        self._exec = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="visa_")
         super().__init__()
         
-    async def create_link(self, clientId: int, lockDevice: bool, lock_timeout: int, device: bytes, link_id: int):
+    async def create_link(self, clientId: int, lockDevice: bool,
+                          lock_timeout: int, device: bytes, link_id: int, conn:vxi11_core_conn) -> Tuple[vxi11_errorCodes,link]:
         """ Returns (errorcode,link)"""
         # Errorcode may be NO_ERROR, SYNTAX_ERROR, DEVICE_NOT_ACCESSIBLE,
         #    OUT_OF_RESOURCES, DEVICE_LOCKED_BY_ANOTHER_LINK, INVALID_ADDRESS
-        return (vxi11_errorCodes.NO_ERROR,link(link_id=link_id,device=device,adapter=self))
-    
+        l = link(link_id=link_id,device=device,adapter=self, conn=conn)
+        
+        
+        return (vxi11_errorCodes.NO_ERROR, l)
